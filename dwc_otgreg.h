@@ -30,100 +30,100 @@
 
 /* Core Global Registers *****************************************/
 
-#define	DOTG_GOTGCTL		0x0000
-#define	DOTG_GOTGINT		0x0004
-#define	DOTG_GAHBCFG		0x0008
-#define	DOTG_GUSBCFG		0x000C
-#define	DOTG_GRSTCTL		0x0010
-#define	DOTG_GINTSTS		0x0014
-#define	DOTG_GINTMSK		0x0018
-#define	DOTG_GRXSTSR		0x001C
-#define	DOTG_GRXSTSP		0x0020
-#define	DOTG_GRXFSIZ		0x0024
-#define	DOTG_GNPTXFSIZ		0x0028
-#define	DOTG_GNPTXSTS		0x002C
-#define	DOTG_GI2CCTL		0x0030
-#define	DOTG_GPVNDCTL		0x0034
-#define	DOTG_GGPIO		0x0038
-#define	DOTG_GUID		0x003C
-#define	DOTG_GSNPSID		0x0040
-#define	DOTG_GHWCFG1		0x0044
-#define	DOTG_GHWCFG2		0x0048
-#define	DOTG_GHWCFG3		0x004C
-#define	DOTG_GHWCFG4		0x0050
-#define	DOTG_GLPMCFG		0x0054
+#define	DWC_OTG_GOTGCTL		0x0000
+#define	DWC_OTG_GOTGINT		0x0004
+#define	DWC_OTG_GAHBCFG		0x0008
+#define	DWC_OTG_GUSBCFG		0x000C
+#define	DWC_OTG_GRSTCTL		0x0010
+#define	DWC_OTG_GINTSTS		0x0014
+#define	DWC_OTG_GINTMSK		0x0018
+#define	DWC_OTG_GRXSTSR		0x001C
+#define	DWC_OTG_GRXSTSP		0x0020
+#define	DWC_OTG_GRXFSIZ		0x0024
+#define	DWC_OTG_GNPTXFSIZ		0x0028
+#define	DWC_OTG_GNPTXSTS		0x002C
+#define	DWC_OTG_GI2CCTL		0x0030
+#define	DWC_OTG_GPVNDCTL		0x0034
+#define	DWC_OTG_GGPIO		0x0038
+#define	DWC_OTG_GUID		0x003C
+#define	DWC_OTG_GSNPSID		0x0040
+#define	DWC_OTG_GHWCFG1		0x0044
+#define	DWC_OTG_GHWCFG2		0x0048
+#define	DWC_OTG_GHWCFG3		0x004C
+#define	DWC_OTG_GHWCFG4		0x0050
+#define	DWC_OTG_GLPMCFG		0x0054
 
-#define	DOTG_HPTXFSIZ		0x0100
+#define	DWC_OTG_HPTXFSIZ		0x0100
 /* start from 0x104, but fifo0 does not exist */
-#define	DOTG_DPTXFSIZ(fifo)	(0x0100 + (4*(fifo)))
-#define	DOTG_DIEPTXF(fifo)	(0x0100 + (4*(fifo)))
+#define	DWC_OTG_DPTXFSIZ(fifo)	(0x0100 + (4*(fifo)))
+#define	DWC_OTG_DIEPTXF(fifo)	(0x0100 + (4*(fifo)))
 
 /* Device Global Registers ***************************************/
 
-#define	DOTG_DCFG		0x0800
-#define	DOTG_DCTL		0x0804
-#define	DOTG_DSTS		0x0808
-#define	DOTG_DIEPMSK		0x0810
-#define	DOTG_DOEPMSK		0x0814
-#define	DOTG_DAINT		0x0818
-#define	DOTG_DAINTMSK		0x081C
-#define	DOTG_DTKNQR1		0x0820
-#define	DOTG_DTKNQR2		0x0824
-#define	DOTG_DVBUSDIS		0x0828
-#define	DOTG_DVBUSPULSE		0x082C
-#define	DOTG_DTHRCTL		0x0830
-#define	DOTG_DTKNQR4		0x0834
-#define	DOTG_DIEPEMPMSK		0x0834
-#define	DOTG_DEACHINT		0x0838
-#define	DOTG_DEACHINTMSK	0x083C
-#define	DOTG_DIEPEACHINTMSK(ch)	(0x0840 + (4*(ch)))
-#define	DOTG_DOEPEACHINTMSK(ch)	(0x0880 + (4*(ch)))
+#define	DWC_OTG_DCFG		0x0800
+#define	DWC_OTG_DCTL		0x0804
+#define	DWC_OTG_DSTS		0x0808
+#define	DWC_OTG_DIEPMSK		0x0810
+#define	DWC_OTG_DOEPMSK		0x0814
+#define	DWC_OTG_DAINT		0x0818
+#define	DWC_OTG_DAINTMSK		0x081C
+#define	DWC_OTG_DTKNQR1		0x0820
+#define	DWC_OTG_DTKNQR2		0x0824
+#define	DWC_OTG_DVBUSDIS		0x0828
+#define	DWC_OTG_DVBUSPULSE		0x082C
+#define	DWC_OTG_DTHRCTL		0x0830
+#define	DWC_OTG_DTKNQR4		0x0834
+#define	DWC_OTG_DIEPEMPMSK		0x0834
+#define	DWC_OTG_DEACHINT		0x0838
+#define	DWC_OTG_DEACHINTMSK	0x083C
+#define	DWC_OTG_DIEPEACHINTMSK(ch)	(0x0840 + (4*(ch)))
+#define	DWC_OTG_DOEPEACHINTMSK(ch)	(0x0880 + (4*(ch)))
 
 /* Device Endpoint Specific Registers ****************************/
 
-#define	DOTG_DIEPCTL(ep)	(0x0900 + (32*(ep)))
-#define	DOTG_DIEPINT(ep)	(0x0908 + (32*(ep)))
-#define	DOTG_DIEPTSIZ(ep)	(0x0910 + (32*(ep)))
-#define	DOTG_DIEPDMA(ep)	(0x0914 + (32*(ep)))
-#define	DOTG_DTXFSTS(ep)	(0x0918 + (32*(ep)))
-#define	DOTG_DIEPDMAB(ep)	(0x091c + (32*(ep)))
+#define	DWC_OTG_DIEPCTL(ep)	(0x0900 + (32*(ep)))
+#define	DWC_OTG_DIEPINT(ep)	(0x0908 + (32*(ep)))
+#define	DWC_OTG_DIEPTSIZ(ep)	(0x0910 + (32*(ep)))
+#define	DWC_OTG_DIEPDMA(ep)	(0x0914 + (32*(ep)))
+#define	DWC_OTG_DTXFSTS(ep)	(0x0918 + (32*(ep)))
+#define	DWC_OTG_DIEPDMAB(ep)	(0x091c + (32*(ep)))
 
-#define	DOTG_DOEPCTL(ep)	(0x0B00 + (32*(ep)))
-#define	DOTG_DOEPFN(ep)		(0x0B04 + (32*(ep)))
-#define	DOTG_DOEPINT(ep)	(0x0B08 + (32*(ep)))
-#define	DOTG_DOEPTSIZ(ep)	(0x0B10 + (32*(ep)))
-#define	DOTG_DOEPDMA(ep)	(0x0B14 + (32*(ep)))
-#define	DOTG_DOEPDMAB(ep)	(0x0B1c + (32*(ep)))
+#define	DWC_OTG_DOEPCTL(ep)	(0x0B00 + (32*(ep)))
+#define	DWC_OTG_DOEPFN(ep)		(0x0B04 + (32*(ep)))
+#define	DWC_OTG_DOEPINT(ep)	(0x0B08 + (32*(ep)))
+#define	DWC_OTG_DOEPTSIZ(ep)	(0x0B10 + (32*(ep)))
+#define	DWC_OTG_DOEPDMA(ep)	(0x0B14 + (32*(ep)))
+#define	DWC_OTG_DOEPDMAB(ep)	(0x0B1c + (32*(ep)))
 
 /* Host Global Registers *****************************************/
 
-#define	DOTG_HCFG		0x0400
-#define	DOTG_HFIR		0x0404
-#define	DOTG_HFNUM		0x0408
-#define	DOTG_HPTXSTS		0x0410
-#define	DOTG_HAINT		0x0414
-#define	DOTG_HAINTMSK		0x0418
-#define	DOTG_HFLBADDR		0x041C
-#define	DOTG_HPRT		0x0440
+#define	DWC_OTG_HCFG		0x0400
+#define	DWC_OTG_HFIR		0x0404
+#define	DWC_OTG_HFNUM		0x0408
+#define	DWC_OTG_HPTXSTS		0x0410
+#define	DWC_OTG_HAINT		0x0414
+#define	DWC_OTG_HAINTMSK		0x0418
+#define	DWC_OTG_HFLBADDR		0x041C
+#define	DWC_OTG_HPRT		0x0440
 
 /* Host Port CSRs ************************************************/
 
 /* Power and clock gating CSR */
-#define	DOTG_PCGCCTL		0x0E00
+#define	DWC_OTG_PCGCCTL		0x0E00
 
 /* Host Channel Specific Registers *******************************/
 
-#define	DOTG_HCCHAR(ch)		(0x0500 + (32*(ch)))
-#define	DOTG_HCSPLT(ch)		(0x0504 + (32*(ch)))
-#define	DOTG_HCINT(ch)		(0x0508 + (32*(ch)))
-#define	DOTG_HCINTMSK(ch)	(0x050C + (32*(ch)))
-#define	DOTG_HCTSIZ(ch)		(0x0510 + (32*(ch)))
-#define	DOTG_HCDMA(ch)		(0x0514 + (32*(ch)))
-#define	DOTG_HCDMAB(ch)		(0x051C + (32*(ch)))
+#define	DWC_OTG_HCCHAR(ch)		(0x0500 + (32*(ch)))
+#define	DWC_OTG_HCSPLT(ch)		(0x0504 + (32*(ch)))
+#define	DWC_OTG_HCINT(ch)		(0x0508 + (32*(ch)))
+#define	DWC_OTG_HCINTMSK(ch)	(0x050C + (32*(ch)))
+#define	DWC_OTG_HCTSIZ(ch)		(0x0510 + (32*(ch)))
+#define	DWC_OTG_HCDMA(ch)		(0x0514 + (32*(ch)))
+#define	DWC_OTG_HCDMAB(ch)		(0x051C + (32*(ch)))
 
 /* FIFO Access Registers (PIO-mode) ******************************/
 
-#define	DOTG_DFIFO(n)		(0x1000 + (0x1000 * (n)))
+#define	DWC_OTG_DFIFO(n)		(0x1000 + (0x1000 * (n)))
 
 /*****************************************************************/
 

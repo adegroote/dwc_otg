@@ -78,7 +78,7 @@ typedef struct dwc_otg_td {
 #define	DWC_OTG_HOST_TIMER_RATE 10 /* ms */
 
 typedef struct dwc_otg_soft_ed {
-} dotg_soft_ed_t;
+} dwc_otg_soft_ed_t;
 
 typedef struct dwc_otg_soft_td {
 	dwc_otg_td_t *td;
@@ -136,3 +136,5 @@ void		dwc_otg_childdet(device_t, device_t);
 int		dwc_otg_activate(device_t, enum devact);
 bool		dwc_otg_resume(device_t, const pmf_qual_t *);
 bool		dwc_otg_suspend(device_t, const pmf_qual_t *);
+usbd_status dwc_otg_device_request(usbd_xfer_handle);
+
