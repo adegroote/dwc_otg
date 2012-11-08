@@ -100,17 +100,25 @@ typedef struct dwc_otg_softc {
 
 	usbd_xfer_handle sc_intrxfer;
 
-	device_t sc_child;
+	device_t sc_child;	/* /dev/usb# device */
 	char sc_dying;
 	struct usb_dma_reserve sc_dma_reserve;
 
+	char sc_vendor[32];		/* vendor string for root hub */
+	int sc_id_vendor;		/* vendor ID for root hub */
+
 	/* From FreeBSD softc */
+	uint32_t sc_rx_bounce_buffer[1024 / 4];
+	uint32_t sc_tx_bounce_buffer[(512 * DWC_OTG_MAX_TXP) / 4];
+
+	uint32_t sc_fifo_size;
+	uint32_t sc_irq_mask;
 	uint32_t sc_hprt_val;
 
-	uint16_t sc_active_rx_ep;
 
 	uint8_t	sc_dev_ep_max;
 	uint8_t sc_dev_in_ep_max;
+	uint8_t	sc_host_ch_max;
 
 	uint8_t sc_addr;		/* device address */
 	uint8_t sc_conf;		/* device configuration */
@@ -118,6 +126,8 @@ typedef struct dwc_otg_softc {
 #define DWC_MODE_OTG 0
 #define DWC_MODE_DEVICE 1
 #define DWC_MODE_HOST 2
+
+	uint16_t sc_active_rx_ep;
 
 	struct dwc_otg_flags sc_flags;
 

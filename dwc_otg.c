@@ -43,6 +43,17 @@ int dwc_otgdebug = 0;
 #define DPRINTFN(n,x)
 #endif
 
+#define	DWC_OTG_MSK_GINT_ENABLED	\
+   (GINTSTS_ENUMDONE |			\
+   GINTSTS_USBRST |			\
+   GINTSTS_USBSUSP |			\
+   GINTSTS_IEPINT |			\
+   GINTSTS_RXFLVL |			\
+   GINTSTS_SESSREQINT |			\
+   GINTMSK_OTGINTMSK |			\
+   GINTMSK_HCHINTMSK |			\
+   GINTSTS_PRTINT)
+
 struct dwc_otg_pipe;
 
 Static usbd_status	dwc_otg_open(usbd_pipe_handle);
@@ -113,7 +124,23 @@ Static void		dwc_otg_timeout_task(void *);
 
 Static void		dwc_otg_pull_up(struct dwc_otg_softc *sc);
 Static void		dwc_otg_pull_down(struct dwc_otg_softc *sc);
+Static void 	dwc_otg_clocks_on(dwc_otg_softc_t*);
+Static void 	dwc_otg_clocks_off(dwc_otg_softc_t*);
+static void		dwc_otg_timer_start(struct dwc_otg_softc *sc);
+static void		dwc_otg_timer_stop(struct dwc_otg_softc *sc);
+static void		dwc_otg_suspend_irq(struct dwc_otg_softc *sc);
+static void		dwc_otg_resume_irq(struct dwc_otg_softc *sc);
+static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *sc);
+static void		dwc_otg_intr_xxx(dwc_otg_softc_t *sc);
+static void		dwc_otg_root_intr(struct dwc_otg_softc *sc);
+
+
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc);
+
+Static void		dwc_otg_rem_ed(dwc_otg_softc_t*, dwc_otg_soft_ed_t* ,
+								dwc_otg_soft_ed_t* );
+Static dwc_otg_soft_ed_t* dwc_otg_alloc_sed(dwc_otg_softc_t*);
+Static void		dwc_otg_free_sed(dwc_otg_softc_t*, dwc_otg_soft_ed_t* );
 
 
 static int dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode);
@@ -124,7 +151,7 @@ static int dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode);
 #define DWC_OTG_WRITE_4(sc, reg, data)  \
   bus_space_write_4((sc)->sc_iot, (sc)->sc_ioh, reg, data)
 #define offonbits(sc, reg, off, on) \
-  DWC_OTG_WRITE_4((sc),(reg),DWC_OTG_READ_4((sc),(reg)) & ~(off) | (on))
+  DWC_OTG_WRITE_4((sc),(reg),(DWC_OTG_READ_4((sc),(reg)) & ~(off)) | (on))
 
 
 struct dwc_otg_pipe {
@@ -142,6 +169,8 @@ struct dwc_otg_pipe {
 		} iso;
 	} u;
 };
+
+#define DWC_OTG_INTR_ENDPT 1
 
 Static const struct usbd_bus_methods dwc_otg_bus_methods = {
 	.open_pipe =	dwc_otg_open,
@@ -368,7 +397,7 @@ dwc_otg_open(usbd_pipe_handle pipe)
 	uint8_t xfertype = ed->bmAttributes & UE_XFERTYPE;
 	dwc_otg_soft_ed_t *sed;
 	dwc_otg_soft_td_t *std;
-	usbd_status err = USBD_NOMEM;
+	usbd_status err;
 
 	if (sc->sc_dying) {
 		err = USBD_IOERROR;
@@ -380,7 +409,7 @@ dwc_otg_open(usbd_pipe_handle pipe)
 		case USB_CONTROL_ENDPOINT:
 			pipe->methods = &dwc_otg_root_ctrl_methods;
 			break;
-		case UE_DIR_IN: // XXX to verify 
+		case UE_DIR_IN | DWC_OTG_INTR_ENDPT: 
 			pipe->methods = &dwc_otg_root_intr_methods;
 			break;
 		default:
@@ -388,12 +417,10 @@ dwc_otg_open(usbd_pipe_handle pipe)
 			goto fail;
 		}
 	} else {
-#ifdef notyet
 		sed = dwc_otg_alloc_sed(sc);
 		if (sed == NULL)
 			goto fail;
 		dpipe->sed = sed;
-#endif
 		if (xfertype == UE_ISOCHRONOUS) {
 			// XXX ...
 		} else {
@@ -436,9 +463,28 @@ dwc_otg_close_pipe(usbd_pipe_handle pipe, dwc_otg_soft_ed_t *head)
 	dwc_otg_soft_ed_t *sed = dpipe->sed;
 
 	dwc_otg_rem_ed(sc, sed, head);
-	dwc_otg_delayms(sc, 1);
+	usb_delay_ms(&sc->sc_bus, mstohz(1));
 	dwc_otg_free_sed(sc, dpipe->sed);
 }
+
+Static void
+dwc_otg_rem_ed(dwc_otg_softc_t* sc, dwc_otg_soft_ed_t* sed, dwc_otg_soft_ed_t* head)
+{
+	// XXX TODO
+}
+
+Static dwc_otg_soft_ed_t* 
+dwc_otg_alloc_sed(dwc_otg_softc_t* sc)
+{
+	// XXX TODO
+}
+
+Static void
+dwc_otg_free_sed(dwc_otg_softc_t* sc, dwc_otg_soft_ed_t* sed)
+{
+	// XXX TODO
+}
+
 
 /*
  * Abort a device request.
@@ -464,6 +510,7 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 	}
 	xfer->hcflags |= UXFER_ABORTING;
 
+	/* XXX Where does come from the channel for now ? */
 	DWC_OTG_WRITE_4(sc, DWC_OTG_HCINTMSK(ch), HCINTMSK_CHHLTDMSK);
 	DWC_OTG_WRITE_4(sc, DWC_OTG_HCINT(ch), ~HCINTMSK_CHHLTDMSK);
 
@@ -529,7 +576,7 @@ Static const usb_interface_descriptor_t dwc_otg_ifcd = {
 Static const usb_endpoint_descriptor_t dwc_otg_endpd = {
 	.bLength = USB_ENDPOINT_DESCRIPTOR_SIZE,
 	.bDescriptorType = UDESC_ENDPOINT,
-	.bEndpointAddress = UE_DIR_IN | OHCI_INTR_ENDPT,
+	.bEndpointAddress = UE_DIR_IN | DWC_OTG_INTR_ENDPT,
 	.bmAttributes = UE_INTERRUPT,
 	.wMaxPacketSize = {8, 0},			/* max packet */
 	.bInterval = 255,
@@ -552,7 +599,7 @@ Static usbd_status
 dwc_otg_root_ctrl_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
-	usb_status err;
+	usbd_status err;
 
 	mutex_enter(&sc->sc_lock);
 	err = usb_insert_transfer(xfer);
@@ -567,13 +614,13 @@ Static usbd_status
 dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
-	usb_device_request *req;
+	usb_device_request_t* req;
 	uint8_t *buf;
 	int port, i;
 	int len, value, index, l, totlen;
 	usb_port_status_t ps;
 	usb_hub_descriptor_t hubd;
-	usb_status_t err = USBD_IOERROR;
+	usbd_status err = USBD_IOERROR;
 	uint32_t v;
 
 	if (sc->sc_dying)
@@ -710,7 +757,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_OTHER):
-		DPRINTFN(9, "UR_CLEAR_PORT_FEATURE on port %d\n", index);
+		DPRINTFN(9, ("UR_CLEAR_PORT_FEATURE on port %d\n", index));
 
 		if (index < 1 || index > sc->sc_noport)
                         goto fail;
@@ -802,7 +849,9 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		/* Select Device Side Mode */
 
 		if (sc->sc_flags.status_device_mode) {
+			/* XXX FreeBSD specific, which value ?
 			value = UPS_PORT_MODE_DEVICE;
+			*/
 			dwc_otg_timer_stop(sc);
 		} else {
 			value = 0;
@@ -1109,6 +1158,7 @@ usbd_status
 dwc_otg_init(dwc_otg_softc_t *sc)
 {
 	uint32_t temp;
+	int i;
 
 	sc->sc_bus.hci_private = sc;
 	sc->sc_bus.usbrev = USBREV_2_0;
@@ -1246,8 +1296,6 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	return 0;
 }
 
-//  XXX used somewhere? 
-static
 int dwc_otg_intr(void *p)
 {
 	dwc_otg_softc_t *sc = p;
@@ -1394,21 +1442,79 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 Static void
 dwc_otg_pull_up(struct dwc_otg_softc *sc)
 {
-	if (!sc->sc_d_pulled_up) {
-		sc->sc_d_pulled_up = 1;
-		offonbits(sc, DCTL_SFTDISCON, 0);
+	if (!sc->sc_flags.d_pulled_up) {
+		sc->sc_flags.d_pulled_up = 1;
+		offonbits(sc, DWC_OTG_DCTL, DCTL_SFTDISCON, 0);
 	}
 }
 
 Static void
 dwc_otg_pull_down(struct dwc_otg_softc *sc)
 {
-	if (sc->sc_d_pulled_up) {
-		sc->sc_d_pulled_up = 0;
-		offonbits(sc, 0, DCTL_SFTDISCON);
+	if (sc->sc_flags.d_pulled_up) {
+		sc->sc_flags.d_pulled_up = 0;
+		offonbits(sc, DWC_OTG_DCTL, 0, DCTL_SFTDISCON);
 	}
 }
 
+Static void 	
+dwc_otg_clocks_on(dwc_otg_softc_t* sc)
+{
+	/// XXX implement
+}
+
+Static void 	
+dwc_otg_clocks_off(dwc_otg_softc_t* sc)
+{
+	// XXX Implement
+}
+
+static void
+dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
+{
+	DPRINTFN(5, "RX status clear\n");
+
+	/* enable RX FIFO level interrupt */
+	sc->sc_irq_mask |= GINTSTS_RXFLVL;
+	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTMSK, sc->sc_irq_mask);
+
+#ifdef notyet
+	/* clear cached status */
+	sc->sc_last_rx_status = 0;
+#endif
+}
+
+static void
+dwc_otg_timer_start(struct dwc_otg_softc *sc)
+{
+	// XXX implement
+}
+
+static void
+dwc_otg_timer_stop(struct dwc_otg_softc *sc)
+{
+	// XXX implement
+}
+
+static void
+dwc_otg_suspend_irq(struct dwc_otg_softc *sc)
+{
+	// XXX implement
+}
+
+static void
+dwc_otg_resume_irq(struct dwc_otg_softc *sc)
+{
+	// XXX implement
+}
+
+static void
+dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
+{
+	// XXX implement
+}
+
+#if 0
 Static void
 dwc_otg_write_td(struct dwc_otg_softc *sc, dwc_otg_soft_td_t *std,
 	void *buf, size_t bytes, uint32_t flags)
@@ -1423,12 +1529,11 @@ dwc_otg_write_td(struct dwc_otg_softc *sc, dwc_otg_soft_td_t *std,
 		BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 }
 
-#if 0
 Static void
 dwc_otg_start_dma(...)
 {
 	KASSERT(tdbuf is properly aligned);
-	KASSERT(size doesn't span 2K pages);
+	KASSERT(size doesnt span 2K pages);
 
 	dopng = 0;
 	if (do_ping? && !ep_is_in)
@@ -1503,13 +1608,13 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	}
 
 	if (status & GINTSTS_PRTINT) {
-		sc->sc_hprt = DWC_OTG_READ_4(sc, DWC_OTG_HPRT);
+		sc->sc_hprt_val = DWC_OTG_READ_4(sc, DWC_OTG_HPRT);
 		DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, (hprt & (
 			HPRT_PRTPWR | HPRT_PRTENCHNG |
 			HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
 			sc->sc_hprt_val);
 
-		if (sc->sc_hprt & HPRT_PRTSUSP)
+		if (sc->sc_hprt_val & HPRT_PRTSUSP)
 			dwc_otg_suspend_irq(sc);
 		else
 			dwc_otg_resume_irq(sc);
@@ -1525,7 +1630,7 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	}
 
 	if (status & (GINTSTS_USBSUSP | GINTSTS_USBRST | GINTMSK_OTGINTMSK | GINTSTS_SESSREQINT)) {
-		vbus_interrupt(sc);
+		dwc_otg_vbus_interrupt(sc);
 	}
 
 	if (status & GINTSTS_IEPINT) {
@@ -1534,9 +1639,12 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 
 	if (status & GINTSTS_SOF) {
 		if (sc->sc_irq_mask & GINTMSK_SOFMSK) {
+			/*
+			 * XXX TODO
 			search for channel that is waiting for SOF
 			if none found
 				disable GINTMSK_SOFMSK
+			 */	
 		}
 	}
 
@@ -1544,8 +1652,11 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	dwc_otg_intr_xxx(sc);
 }
 
+static void
 dwc_otg_intr_xxx(dwc_otg_softc_t *sc)
 {
+	uint8_t ch, epno;
+	uint32_t rx, temp, bcnt, intrs;
 
 repeat:
 	for (ch = 0; ch < sc->sc_host_ch_max; ++ch) {
@@ -1566,34 +1677,43 @@ repeat:
 
 		if (bcnt) {
 			/* read bytes from fifo */
-			bus_space_read_region(sc->sc_iot, sc->sc_ioh,
+			bus_space_read_region_4(sc->sc_iot, sc->sc_ioh,
 				DWC_OTG_DFIFO(epno),
 				sc->sc_rx_bounce_buffer, (bcnt+3)/4);
 		}
-#ifdef notyet
-		if (ep not active) {
-			enable GINTSTS_RXFLVL in GINTMSK
+		/* check if we should dump the data */
+		if (!(sc->sc_active_rx_ep & (1U << epno))) {
+			dwc_otg_common_rx_ack(sc);
+			goto repeat;
 		}
-#endif
 		break;
 	default:
 		epno = GRXSTSRD_CHNUM_GET(rx);
 
-		/* skip non-data messages */
-		if (ep not active) {
-			enable GINTSTS_RXFLVL in GINTMSK
+		if (!(sc->sc_active_rx_ep & (1U << epno))) {
+			dwc_otg_common_rx_ack(sc);
 			goto repeat;
 		}
 		break;
 	}
 
+#ifdef notyet
 	poll transfers
 	if ("queue has been modified") goto repeat
+#endif
 
 	if (rx == 0)
 		goto repeat;
 
-	disable GINTSTS_RXFLVL in GINTMSK
+	/* disable RX FIFO level interrupt */
+	sc->sc_irq_mask &= ~GINTSTS_RXFLVL;
+	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTMSK, sc->sc_irq_mask);
+}
+
+static void
+dwc_otg_root_intr(struct dwc_otg_softc *sc)
+{
+	// XXX to implement
 }
 
 Static void
@@ -1742,9 +1862,9 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 			pf->usb.is_simplex = 1;
 		}
 
-		DPRINTF("FIFO%d = IN:%d / OUT:%d\n", x,
+		DPRINTF(("FIFO%d = IN:%d / OUT:%d\n", x,
 		    pf->usb.max_in_frame_size,
-		    pf->usb.max_out_frame_size);
+		    pf->usb.max_out_frame_size));
 	    }
 	}
 #endif
