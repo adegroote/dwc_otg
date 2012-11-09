@@ -510,13 +510,13 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 	xfer->hcflags |= UXFER_ABORTING;
 
 	/* XXX Where does come from the channel for now ? */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_HCINTMSK(ch), HCINTMSK_CHHLTDMSK);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_HCINT(ch), ~HCINTMSK_CHHLTDMSK);
+	DWC_OTG_WRITE_4(sc, DOTG_HCINTMSK(ch), HCINTMSK_CHHLTDMSK);
+	DWC_OTG_WRITE_4(sc, DOTG_HCINT(ch), ~HCINTMSK_CHHLTDMSK);
 
-	if ((DWC_OTG_READ_4(sc, DWC_OTG_HCCHAR(ch)) & HCCHAR_CHENA) == 0)
+	if ((DWC_OTG_READ_4(sc, DOTG_HCCHAR(ch)) & HCCHAR_CHENA) == 0)
 		return;
 
-	offonbits(sc, DWC_OTG_HCCHAR(ch), HCCHAR_CHENA, HCCHAR_CHDIS);
+	offonbits(sc, DOTG_HCCHAR(ch), HCCHAR_CHENA, HCCHAR_CHDIS);
 }
 
 Static void
@@ -764,7 +764,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		switch (value) {
 		case UHF_PORT_ENABLE:
 			if (sc->sc_flags.status_device_mode == 0) {
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT,
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT,
 				    sc->sc_hprt_val | HPRT_PRTENA);
 			}
 			sc->sc_flags.port_enabled = 0;
@@ -779,7 +779,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 			if (sc->sc_mode == DWC_MODE_HOST ||
 			    sc->sc_mode == DWC_MODE_OTG) {
 				sc->sc_hprt_val = 0;
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, HPRT_PRTENA);
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT, HPRT_PRTENA);
 			}
 			dwc_otg_pull_down(sc);
 			dwc_otg_clocks_off(sc);
@@ -918,7 +918,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 			if (sc->sc_flags.status_device_mode == 0) {
 				/* set suspend BIT */
 				sc->sc_hprt_val |= HPRT_PRTSUSP;
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, sc->sc_hprt_val);
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT, sc->sc_hprt_val);
 
 				/* generate HUB suspend event */
 				dwc_otg_suspend_irq(sc);
@@ -931,13 +931,13 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 				DPRINTF("PORT RESET\n");
 
 				/* enable PORT reset */
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT,
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT,
 				    sc->sc_hprt_val | HPRT_PRTRST);
 
 				/* Wait 62.5ms for reset to complete */
 				usb_delay_ms(&sc->sc_bus, hz / 16);
 
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, sc->sc_hprt_val);
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT, sc->sc_hprt_val);
 
 				/* Wait 62.5ms for reset to complete */
 				usb_delay_ms(&sc->sc_bus, hz / 16);
@@ -959,7 +959,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 			if (sc->sc_mode == DWC_MODE_HOST ||
 			    sc->sc_mode == DWC_MODE_OTG) {
 				sc->sc_hprt_val |= HPRT_PRTPWR;
-				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, sc->sc_hprt_val);
+				DWC_OTG_WRITE_4(sc, DOTG_HPRT, sc->sc_hprt_val);
 			}
 			sc->sc_flags.port_powered = 1;
 			break;
@@ -1172,13 +1172,13 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
 		USB_MEM_RESERVE);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GSNPSID);
+	temp = DWC_OTG_READ_4(sc, DOTG_GSNPSID);
 	DPRINTF(("Version = 0x%08x\n", temp));
 
 	/* disconnect */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_DCTL, DCTL_SFTDISCON);
+	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_SFTDISCON);
 	usb_delay_ms(&sc->sc_bus, 30);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GRSTCTL, GRSTCTL_CSFTRST);
+	DWC_OTG_WRITE_4(sc, DOTG_GRSTCTL, GRSTCTL_CSFTRST);
 	usb_delay_ms(&sc->sc_bus, 8);
 
 	sc->sc_mode = DWC_MODE_HOST;
@@ -1196,46 +1196,46 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	}
 
 #ifdef DWC_OTG_USE_HSIC
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GUSBCFG,
+	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
 		GUSBCFG_PHYIF |
 		GUSBCFG_TRD_TIM_SET(5) | temp);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GOTGCTL, 0x000000ec);
+	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0x000000ec);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GLPMCFG);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GLPMCFG, temp | GLPMCFG_HSIC_CONN);
+	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp | GLPMCFG_HSIC_CONN);
 #else
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GUSBCFG,
+	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
 		GUSBCFG_ULPI_UTMI_SEL |
 		GUSBCFG_TRD_TIM_SET(5) | temp);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GOTGCTL, 0);
+	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GLPMCFG);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
+	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
 #endif
 
 	/* clear global nak */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_DCTL, DCTL_CGOUTNAK | DCTL_CGNPINNAK);
+	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_CGOUTNAK | DCTL_CGNPINNAK);
 
 	/* disable USB port */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_PCGCCTL, 0xffffffff);
+	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0xffffffff);
 	usb_delay_ms(&sc->sc_bus, 10);
 
 	/* enable USB port */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_PCGCCTL, 0);
+	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0);
 	usb_delay_ms(&sc->sc_bus, 10);
 
 	/* pull up D+ */
 	dwc_otg_pull_up(sc);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG3);
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG3);
 	sc->sc_fifo_size = 4 * GHWCFG3_DFIFODEPTH_GET(temp);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG2);
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
 	sc->sc_dev_ep_max = min(GHWCFG2_NUMDEVEPS_GET(temp),DWC_OTG_MAX_ENDPOINTS);
 	sc->sc_host_ch_max = min(GHWCFG2_NUMHSTCHNL_GET(temp),DWC_OTG_MAX_CHANNELS);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG4);
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG4);
 	sc->sc_dev_in_ep_max = GHWCFG4_NUM_IN_EP_GET(temp);
 
 	DPRINTF(("Total FIFO size = %d bytes, Device EPs = %d/%d Host CHs = %d\n",
@@ -1248,24 +1248,24 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 
 	/* enable interrupts */
 	sc->sc_irq_mask = DWC_OTG_MSK_GINT_ENABLED;
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTMSK, sc->sc_irq_mask);
+	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
 
 	switch (sc->sc_mode) {
 	case DWC_MODE_DEVICE:
 	case DWC_MODE_OTG:
 		/* enable endpoint interrupts */
-		temp = DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG2);
+		temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
 		if (temp & GHWCFG2_MPI) {
 			for (i = 0; i < sc->sc_dev_in_ep_max; ++i) {
-				DWC_OTG_WRITE_4(sc, DWC_OTG_DIEPEACHINTMSK(i),
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPEACHINTMSK(i),
 					DIEPMSK_XFERCOMPLMSK);
-				DWC_OTG_WRITE_4(sc, DWC_OTG_DOEPEACHINTMSK(i), 0);
+				DWC_OTG_WRITE_4(sc, DOTG_DOEPEACHINTMSK(i), 0);
 			}
-			DWC_OTG_WRITE_4(sc, DWC_OTG_DEACHINTMSK, 0xffff);
+			DWC_OTG_WRITE_4(sc, DOTG_DEACHINTMSK, 0xffff);
 		} else {
-			DWC_OTG_WRITE_4(sc, DWC_OTG_DIEPMSK, DIEPMSK_XFERCOMPLMSK);
-			DWC_OTG_WRITE_4(sc, DWC_OTG_DOEPMSK, 0);
-			DWC_OTG_WRITE_4(sc, DWC_OTG_DAINTMSK, 0xffff);
+			DWC_OTG_WRITE_4(sc, DOTG_DIEPMSK, DIEPMSK_XFERCOMPLMSK);
+			DWC_OTG_WRITE_4(sc, DOTG_DOEPMSK, 0);
+			DWC_OTG_WRITE_4(sc, DOTG_DAINTMSK, 0xffff);
 		}
 		break;
 	}
@@ -1274,16 +1274,16 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	case DWC_MODE_HOST:
 	case DWC_MODE_OTG:
 		/* setup clocks */
-		offonbits(sc, DWC_OTG_HCFG,
+		offonbits(sc, DOTG_HCFG,
 			HCFG_FSLSSUPP | HCFG_FSLSPCLKSEL_MASK,
 			1 << HCFG_FSLSPCLKSEL_SHIFT);
 		break;
 	}
 
 	/* enable global IRQ */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GAHBCFG, GAHBCFG_GLBLINTRMSK);
+	DWC_OTG_WRITE_4(sc, DOTG_GAHBCFG, GAHBCFG_GLBLINTRMSK);
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GOTGCTL);
+	temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
 	DPRINTFN(5, ("GOTCTL=0x%08x\n", temp));
 
 	/* read initial VBUS state */
@@ -1309,8 +1309,8 @@ int dwc_otg_intr(void *p)
 		goto done;
 
 	if (sc->sc_bus.use_polling) {
-		uint32_t status = DWC_OTG_READ_4(sc, DWC_OTG_GINTSTS);
-		DWC_OTG_WRITE_4(sc, DWC_OTG_GINTSTS, status);
+		uint32_t status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
+		DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
 	} else {
 		ret = dwc_otg_intr1(sc);
 	}
@@ -1371,37 +1371,37 @@ dwc_otg_dump_global_regs(dwc_otg_softc_t *sc)
 {
 	int i, n;
 
-	printf("GOTGCTL        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GOTGCTL));
-	printf("GOTGINT        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GOTGINT));
-	printf("GAHBCFG        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GAHBCFG));
-	printf("GUSBCFG        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GUSBCFG));
-	printf("GRSTCTL        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GRSTCTL));
-	printf("GINTSTS        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GINTSTS));
-	printf("GINTMSK        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GINTMSK));
-	printf("GRXSTSR        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GRXSTSR));
-	printf("GRXSTSP        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GRXSTSP));
-	printf("GRXFSIZ        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GRXFSIZ));
-	printf("GNPTXFSIZ      0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GNPTXFSIZ));
-	printf("GNPTXSTS       0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GNPTXSTS));
-	printf("GI2CCTL        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GI2CCTL));
-	printf("GPVNDCTL       0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GPVNDCTL));
-	printf("GGPIO          0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GGPIO));
-	printf("GUID           0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GUID));
-	printf("GSNPSID        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GSNPSID));
-	printf("GHWCFG1        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG1));
-	printf("GHWCFG2        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG2));
-	printf("GHWCFG3        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG3));
-	printf("GHWCFG4        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GHWCFG4));
-	printf("GLPMCFG        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_GLPMCFG));
-	printf("HPTXFSIZ       0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HPTXFSIZ));
+	printf("GOTGCTL        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GOTGCTL));
+	printf("GOTGINT        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GOTGINT));
+	printf("GAHBCFG        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GAHBCFG));
+	printf("GUSBCFG        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GUSBCFG));
+	printf("GRSTCTL        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRSTCTL));
+	printf("GINTSTS        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GINTSTS));
+	printf("GINTMSK        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GINTMSK));
+	printf("GRXSTSR        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSR));
+	printf("GRXSTSP        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSP));
+	printf("GRXFSIZ        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXFSIZ));
+	printf("GNPTXFSIZ      0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GNPTXFSIZ));
+	printf("GNPTXSTS       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GNPTXSTS));
+	printf("GI2CCTL        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GI2CCTL));
+	printf("GPVNDCTL       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GPVNDCTL));
+	printf("GGPIO          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GGPIO));
+	printf("GUID           0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GUID));
+	printf("GSNPSID        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GSNPSID));
+	printf("GHWCFG1        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GHWCFG1));
+	printf("GHWCFG2        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GHWCFG2));
+	printf("GHWCFG3        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GHWCFG3));
+	printf("GHWCFG4        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GHWCFG4));
+	printf("GLPMCFG        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GLPMCFG));
+	printf("HPTXFSIZ       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPTXFSIZ));
 
-	n = GHWCFG4_NUMDEVPERIOEPS_GET(DWC_OTG_READ_4(sc, DWC_OTG_HWCFG4));
+	n = GHWCFG4_NUMDEVPERIOEPS_GET(DWC_OTG_READ_4(sc, DOTG_HWCFG4));
 	for (i=1; i<n; ++i) {
 		printf("DPTXFSIZ[%2d]  0x%08x\n", i,
-			DWC_OTG_READ_4(sc, DWC_OTG_DPTXFSIZ(i)));
+			DWC_OTG_READ_4(sc, DOTG_DPTXFSIZ(i)));
 	}
 
-	printf("PCGCCTL        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_PCGCCTL));
+	printf("PCGCCTL        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_PCGCCTL));
 
 
 }
@@ -1411,24 +1411,24 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 {
 	int i, n;
 
-	printf("HCFG           0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HCFG));
-	printf("HFIR           0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HFIR));
-	printf("HFNUM          0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HFNUM));
-	printf("HPTXSTS        0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HPTXSTS));
-	printf("HAINT          0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HAINT));
-	printf("HAINTMSK       0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HAINTMSK));
-	printf("HFLBADDR       0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HFLBADDR));
-	printf("HPRT0          0x%08x\n", DWC_OTG_READ_4(sc, DWC_OTG_HPRT0));
+	printf("HCFG           0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HCFG));
+	printf("HFIR           0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HFIR));
+	printf("HFNUM          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HFNUM));
+	printf("HPTXSTS        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPTXSTS));
+	printf("HAINT          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HAINT));
+	printf("HAINTMSK       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HAINTMSK));
+	printf("HFLBADDR       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HFLBADDR));
+	printf("HPRT0          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPRT0));
 
-	n = GHWCFG2_NUMHSTCHNL_GET(DWC_OTG_READ_4(sc, DWC_OTG_HWCFG2));
+	n = GHWCFG2_NUMHSTCHNL_GET(DWC_OTG_READ_4(sc, DOTG_HWCFG2));
 	for (i=0; i<n; ++i) {
 		printf("Host Channel %d Specific Registers\n", i);
-		printf("HCCHAR         0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCCHAR(i)));
-		printf("HCSPLT         0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCSPLT(i)));
-		printf("HCINT          0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCINT(i)));
-		printf("HCINTMSK       0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCINTMSK(i)));
-		printf("HCTSIZ         0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCTSIZ(i)));
-		printf("HCDMA          0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCDMA(i)));
+		printf("HCCHAR         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCCHAR(i)));
+		printf("HCSPLT         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCSPLT(i)));
+		printf("HCINT          0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCINT(i)));
+		printf("HCINTMSK       0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCINTMSK(i)));
+		printf("HCTSIZ         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCTSIZ(i)));
+		printf("HCDMA          0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCDMA(i)));
 		printf("HCDMAB         0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCDMAB(i)));
 	}
 
@@ -1443,7 +1443,7 @@ dwc_otg_pull_up(struct dwc_otg_softc *sc)
 {
 	if (!sc->sc_flags.d_pulled_up) {
 		sc->sc_flags.d_pulled_up = 1;
-		offonbits(sc, DWC_OTG_DCTL, DCTL_SFTDISCON, 0);
+		offonbits(sc, DOTG_DCTL, DCTL_SFTDISCON, 0);
 	}
 }
 
@@ -1452,7 +1452,7 @@ dwc_otg_pull_down(struct dwc_otg_softc *sc)
 {
 	if (sc->sc_flags.d_pulled_up) {
 		sc->sc_flags.d_pulled_up = 0;
-		offonbits(sc, DWC_OTG_DCTL, 0, DCTL_SFTDISCON);
+		offonbits(sc, DOTG_DCTL, 0, DCTL_SFTDISCON);
 	}
 }
 
@@ -1475,7 +1475,7 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 
 	/* enable RX FIFO level interrupt */
 	sc->sc_irq_mask |= GINTSTS_RXFLVL;
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTMSK, sc->sc_irq_mask);
+	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
 
 #ifdef notyet
 	/* clear cached status */
@@ -1558,14 +1558,14 @@ dwc_otg_start_dma(...)
 		}
 	}
 
-	DWC_OTG_WRITE_4(sc, DWC_OTG_HCTSIZ(ch),
+	DWC_OTG_WRITE_4(sc, DOTG_HCTSIZ(ch),
 		dopng
 		| pid << HCTSIZ_PID_SHIFT
 		| (numtd-1) << HCTSIZ_NTD_SHIFT
 		| schinfo << HCTSIZ_SCHINFO_SHIFT);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_HCDMA(ch),
+	DWC_OTG_WRITE_4(sc, DOTG_HCDMA(ch),
 		(uint32_t)(uintptr_t)td);
-	offonbits(sc, DWC_OTG_HCCHAR(ch),
+	offonbits(sc, DOTG_HCCHAR(ch),
 		HCCHAR_MC_MASK | HCCHAR_CHDIS,
 		mc << HCCHAR_MC_SHIFT | HCCHAR_CHENA);
 }
@@ -1573,7 +1573,7 @@ dwc_otg_start_dma(...)
 Static void
 dwc_otg_set_address(strcut dwc_otg_softc *sc, uint8_t addr)
 {
-	offonbits(sc, DWC_OTG_DCFG,
+	offonbits(sc, DOTG_DCFG,
 		DCFG_DEVADDR_SET(0x7f),
 		DCFG_DEVADDR_SET(addr));
 }
@@ -1586,8 +1586,8 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 {
 	uint32_t status;
 
-	status = DWC_OTG_READ_4(sc, DWC_OTG_GINTSTS);
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTSTS, status);
+	status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
+	DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
 
 	if (status & GINTSTS_USBRST) {
 		/* USB reset */
@@ -1607,8 +1607,8 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	}
 
 	if (status & GINTSTS_PRTINT) {
-		sc->sc_hprt_val = DWC_OTG_READ_4(sc, DWC_OTG_HPRT);
-		DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, (hprt & (
+		sc->sc_hprt_val = DWC_OTG_READ_4(sc, DOTG_HPRT);
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (hprt & (
 			HPRT_PRTPWR | HPRT_PRTENCHNG |
 			HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
 			sc->sc_hprt_val);
@@ -1659,14 +1659,14 @@ dwc_otg_intr_xxx(dwc_otg_softc_t *sc)
 
 repeat:
 	for (ch = 0; ch < sc->sc_host_ch_max; ++ch) {
-		intrs = DWC_OTG_READ_4(sc, DWC_OTG_HCINT(ch));
-		DWC_OTG_WRITE_4(sc, DWC_OTG_HCINT(ch), intrs);
+		intrs = DWC_OTG_READ_4(sc, DOTG_HCINT(ch));
+		DWC_OTG_WRITE_4(sc, DOTG_HCINT(ch), intrs);
 	}
 
 	rx = 0;
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GINTSTS);
+	temp = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
 	if (temp & GINTSTS_RXFLVL)
-		rx = DWC_OTG_READ_4(sc, DWC_OTG_GRXSTSPD);
+		rx = DWC_OTG_READ_4(sc, DOTG_GRXSTSPD);
 
 	switch (rx & GRXSTSRD_PKTSTS_MASK) {
 	case GRXSTSRD_STP_DATA:
@@ -1706,7 +1706,7 @@ repeat:
 
 	/* disable RX FIFO level interrupt */
 	sc->sc_irq_mask &= ~GINTSTS_RXFLVL;
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GINTMSK, sc->sc_irq_mask);
+	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
 }
 
 static void
@@ -1720,7 +1720,7 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 {
 	uint32_t temp;
 
-	temp = DWC_OTG_READ_4(sc, DWC_OTG_GOTGCTL);
+	temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
 
 	if (temp & (GOTGCTL_ASESVLD | GOTGCTL_BSESVLD)) {
 		if (!sc->sc_flags.status_vbus) {
@@ -1760,7 +1760,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 	/* split equally for IN and OUT */
 	fifo_size /= 2;
 
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GRXFSIZ, fifo_size / 4);
+	DWC_OTG_WRITE_4(sc, DOTG_GRXFSIZ, fifo_size / 4);
 
 	/* align to 4-bytes */
 	fifo_size &= ~3;
@@ -1779,17 +1779,17 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 
 		fifo_size /= 2;
 
-		DWC_OTG_WRITE_4(sc, DWC_OTG_GNPTXFSIZ,
+		DWC_OTG_WRITE_4(sc, DOTG_GNPTXFSIZ,
 		    ((fifo_size / 4) << 16) | (tx_start / 4));
 
 		tx_start += fifo_size;
 
-		DWC_OTG_WRITE_4(sc, DWC_OTG_HPTXFSIZ,
+		DOTG_WRITE_4(sc, DOTG_HPTXFSIZ,
 		    ((fifo_size / 4) << 16) | (tx_start / 4));
 
 		for (x = 0; x != sc->sc_host_ch_max; x++) {
 			/* enable interrupts */
-			DWC_OTG_WRITE_4(sc, DWC_OTG_HCINTMSK(x),
+			DWC_OTG_WRITE_4(sc, DOTG_HCINTMSK(x),
 			    HCINT_STALL | HCINT_BBLERR |
 			    HCINT_XACTERR |
 			    HCINT_NAK | HCINT_ACK | HCINT_NYET |
@@ -1798,7 +1798,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 		}
 
 		/* enable host channel interrupts */
-		DWC_OTG_WRITE_4(sc, DWC_OTG_HAINTMSK,
+		DWC_OTG_WRITE_4(sc, DOTG_HAINTMSK,
 		    (1U << sc->sc_host_ch_max) - 1U);
 
 	}
@@ -1806,7 +1806,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 #ifdef notyet
 	if (mode == DWC_MODE_DEVICE) {
 
-	    DWC_OTG_WRITE_4(sc, DWC_OTG_GNPTXFSIZ,
+	    DWC_OTG_WRITE_4(sc, DOTG_GNPTXFSIZ,
 		(0x10 << 16) | (tx_start / 4));
 	    fifo_size -= 0x40;
 	    tx_start += 0x40;
@@ -1835,7 +1835,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 			    (DWC_OTG_MAX_TXN / 2);
 
 			if (fifo_size >= limit) {
-				DWC_OTG_WRITE_4(sc, DWC_OTG_DIEPTXF(x),
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPTXF(x),
 				    ((limit / 4) << 16) |
 				    (tx_start / 4));
 				tx_start += limit;
@@ -1845,7 +1845,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 				pf->max_buffer = limit;
 
 			} else if (fifo_size >= 0x80) {
-				DWC_OTG_WRITE_4(sc, DWC_OTG_DIEPTXF(x),
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPTXF(x),
 				    ((0x80 / 4) << 16) | (tx_start / 4));
 				tx_start += 0x80;
 				fifo_size -= 0x80;
@@ -1854,7 +1854,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 
 			} else {
 				pf->usb.is_simplex = 1;
-				DWC_OTG_WRITE_4(sc, DWC_OTG_DIEPTXF(x),
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPTXF(x),
 				    (0x0 << 16) | (tx_start / 4));
 			}
 		} else {
@@ -1869,11 +1869,11 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 #endif
 
 	/* reset RX FIFO */
-	DWC_OTG_WRITE_4(sc, DWC_OTG_GRSTCTL, GRSTCTL_RXFFLSH);
+	DWC_OTG_WRITE_4(sc, DOTG_GRSTCTL, GRSTCTL_RXFFLSH);
 
 	if (mode != DWC_MODE_OTG) {
 		/* reset all TX FIFOs */
-		DWC_OTG_WRITE_4(sc, DWC_OTG_GRSTCTL,
+		DWC_OTG_WRITE_4(sc, DOTG_GRSTCTL,
 		    GRSTCTL_TXFIFO(0x10) | GRSTCTL_TXFFLSH);
 	} else {
 		/* reset active endpoints */
