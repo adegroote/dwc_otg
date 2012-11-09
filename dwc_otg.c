@@ -1779,7 +1779,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 
 		tx_start += fifo_size;
 
-		DOTG_WRITE_4(sc, DOTG_HPTXFSIZ,
+		DWC_OTG_WRITE_4(sc, DOTG_HPTXFSIZ,
 		    ((fifo_size / 4) << 16) | (tx_start / 4));
 
 		for (x = 0; x != sc->sc_host_ch_max; x++) {
