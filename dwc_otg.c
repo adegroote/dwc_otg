@@ -462,7 +462,7 @@ dwc_otg_close_pipe(usbd_pipe_handle pipe, dwc_otg_soft_ed_t *head)
 	dwc_otg_soft_ed_t *sed = dpipe->sed;
 
 	dwc_otg_rem_ed(sc, sed, head);
-	usb_delay_ms(&sc->sc_bus, mstohz(1));
+	usb_delay_ms(&sc->sc_bus, 1);
 	dwc_otg_free_sed(sc, dpipe->sed);
 }
 
@@ -935,12 +935,12 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 				    sc->sc_hprt_val | HPRT_PRTRST);
 
 				/* Wait 62.5ms for reset to complete */
-				usb_delay_ms(&sc->sc_bus, hz / 16);
+				usb_delay_ms(&sc->sc_bus, 63);
 
 				DWC_OTG_WRITE_4(sc, DWC_OTG_HPRT, sc->sc_hprt_val);
 
 				/* Wait 62.5ms for reset to complete */
-				usb_delay_ms(&sc->sc_bus, hz / 16);
+				usb_delay_ms(&sc->sc_bus, 63);
 
 				/* reset FIFOs */
 				dwc_otg_init_fifo(sc, DWC_MODE_HOST);
