@@ -579,12 +579,12 @@ Static const struct dwc_otg_config_desc dwc_otg_confd = {
 		.iInterface = 0
 	},
 	.endpd = {
-	.bLength = USB_ENDPOINT_DESCRIPTOR_SIZE,
-	.bDescriptorType = UDESC_ENDPOINT,
-	.bEndpointAddress = UE_DIR_IN | DWC_OTG_INTR_ENDPT,
-	.bmAttributes = UE_INTERRUPT,
-	.wMaxPacketSize = {8, 0},			/* max packet */
-	.bInterval = 255,
+		.bLength = USB_ENDPOINT_DESCRIPTOR_SIZE,
+		.bDescriptorType = UDESC_ENDPOINT,
+		.bEndpointAddress = UE_DIR_IN | DWC_OTG_INTR_ENDPT,
+		.bmAttributes = UE_INTERRUPT,
+		.wMaxPacketSize = {8, 0},			/* max packet */
+		.bInterval = 255,
 	},
 };
 
