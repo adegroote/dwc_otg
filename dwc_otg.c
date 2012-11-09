@@ -564,7 +564,7 @@ Static const struct dwc_otg_config_desc dwc_otg_confd = {
 		.bNumInterface = 1,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
-		.bmAttributes = UC_SELF_POWERED;
+		.bmAttributes = UC_SELF_POWERED,
 		.bMaxPower = 0,
 	},
 	.ifcd = {
@@ -995,6 +995,17 @@ Static usbd_status
 dwc_otg_root_intr_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	usbd_status err;
+
+	/* Insert last in queue. */
+	mutex_enter(&sc->sc_lock);
+	err = usb_insert_transfer(xfer);
+	mutex_exit(&sc->sc_lock);
+	if (err)
+		return (err);
+
+	/* Pipe isn't running, start first */
+	return (dwc_otg_root_intr_start(SIMPLEQ_FIRST(&xfer->pipe->queue)));
 }
 
 Static usbd_status
@@ -1002,17 +1013,45 @@ dwc_otg_root_intr_start(usbd_xfer_handle xfer)
 {
 	usbd_pipe_handle pipe = xfer->pipe;
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+
+	if (sc->sc_dying)
+		return (USBD_IOERROR);
+
+	mutex_enter(&sc->sc_lock);
+	KASSERT(sc->sc_intrxfer == NULL);
+	sc->sc_intrxfer = xfer;
+	mutex_exit(&sc->sc_lock);
+
+	return (USBD_IN_PROGRESS);
 }
 
 Static void
 dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 {
+#ifdef DIAGNOSTIC
+	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+#endif
+
+	KASSERT(mutex_owned(&sc->sc_lock));
+
+	if (xfer->pipe->intrxfer == xfer) {
+		DPRINTF(("dwc_otg_root_intr_abort: remove\n"));
+		xfer->pipe->intrxfer = NULL;
+	}
+	xfer->status = USBD_CANCELLED;
+	usb_transfer_complete(xfer);
 }
 
 Static void
 dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 {
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+
+	KASSERT(mutex_owned(&sc->sc_lock));
+
+	DPRINTF(("ohci_root_intr_close\n"));
+
+	sc->sc_intrxfer = NULL;
 }
 
 /***********************************************************************/
@@ -1704,10 +1743,27 @@ repeat:
 	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
 }
 
+/* Must be called with the lock helded */
 static void
 dwc_otg_root_intr(struct dwc_otg_softc *sc)
 {
-	// XXX to implement
+	u_char *p; 
+	usbd_xfer_handle xfer;
+
+	KASSERT(mutex_owned(&sc->sc_lock));
+
+	xfer = sc->sc_intrxfer;
+	if (xfer == NULL) {
+		/* Just ignore the change. */
+		return;
+	}
+
+	p = KERNADDR(&xfer->dmabuf, 0);
+	p[0]= 0x02; /* we only have one port */
+	xfer->actlen = 1;
+	xfer->status = USBD_NORMAL_COMPLETION;
+
+	usb_transfer_complete(xfer);
 }
 
 Static void
