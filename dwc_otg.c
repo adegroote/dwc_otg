@@ -270,13 +270,12 @@ dwc_otg_allocx(struct usbd_bus *bus)
 	(void) bus;
 	usbd_xfer_handle xfer;
 
-	xfer = kmem_alloc(sizeof(struct dwc_otg_xfer), KM_SLEEP);
-	if (xfer != NULL) {
-		memset(xfer, 0, sizeof(struct dwc_otg_xfer));
+	xfer = kmem_zalloc(sizeof(struct dwc_otg_xfer), KM_SLEEP);
 #ifdef DIAGNOSTIC
+	if (xfer != NULL) {
 		xfer->busy_free = XFER_BUSY;
-#endif
 	}
+#endif
 	return xfer;
 }
 
