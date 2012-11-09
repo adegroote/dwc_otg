@@ -406,7 +406,7 @@ dwc_otg_open(usbd_pipe_handle pipe)
 		case USB_CONTROL_ENDPOINT:
 			pipe->methods = &dwc_otg_root_ctrl_methods;
 			break;
-		case UE_DIR_IN | DWC_OTG_INTR_ENDPT: 
+		case UE_DIR_IN | DWC_OTG_INTR_ENDPT:
 			pipe->methods = &dwc_otg_root_intr_methods;
 			break;
 		default:
