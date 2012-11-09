@@ -534,51 +534,58 @@ dwc_otg_device_clear_toggle(usbd_pipe_handle pipe)
 /*
  * Data structures and routines to emulate the root hub.
  */
-Static usb_device_descriptor_t dwc_otg_devd = {
-	USB_DEVICE_DESCRIPTOR_SIZE,
-	UDESC_DEVICE,		/* type */
-	{0x00, 0x01},		/* USB version */
-	UDCLASS_HUB,		/* class */
-	UDSUBCLASS_HUB,		/* subclass */
-	UDPROTO_FSHUB,		/* protocol */
-	64,			/* max packet */
-	{0},{0},{0x00,0x01},	/* device id */
-	1,2,0,			/* string indicies */
-	1			/* # of configurations */
+
+Static const usb_device_descriptor_t dwc_otg_devd = {
+	.bLength = sizeof(usb_device_descriptor_t),
+	.bDescriptorType = UDESC_DEVICE,
+	.bcdUSB = {0x00, 0x02},
+	.bDeviceClass = UDCLASS_HUB,
+	.bDeviceSubClass = UDSUBCLASS_HUB,
+	.bDeviceProtocol = UDPROTO_FSHUB /*UDPROTO_HSHUBSTT*/,
+	.bMaxPacketSize = 64,
+	.bcdDevice = {0x00, 0x01},
+	.iManufacturer = 1,
+	.iProduct = 2,
+	.bNumConfigurations = 1,
 };
 
-Static const usb_config_descriptor_t dwc_otg_confd = {
-	USB_CONFIG_DESCRIPTOR_SIZE,
-	UDESC_CONFIG,
-	{USB_CONFIG_DESCRIPTOR_SIZE +
-	 USB_INTERFACE_DESCRIPTOR_SIZE +
-	 USB_ENDPOINT_DESCRIPTOR_SIZE},
-	1,
-	1,
-	0,
-	UC_ATTR_MBO | UC_SELF_POWERED,
-	0			/* max power */
-};
 
-Static const usb_interface_descriptor_t dwc_otg_ifcd = {
-	USB_INTERFACE_DESCRIPTOR_SIZE,
-	UDESC_INTERFACE,
-	0,
-	0,
-	1,
-	UICLASS_HUB,
-	UISUBCLASS_HUB,
-	UIPROTO_FSHUB,
-	0
-};
+struct dwc_otg_config_desc {
+	usb_config_descriptor_t confd;
+	usb_interface_descriptor_t ifcd;
+	usb_endpoint_descriptor_t endpd;
+} __packed;
 
-Static const usb_endpoint_descriptor_t dwc_otg_endpd = {
+Static const struct dwc_otg_config_desc dwc_otg_confd = {
+	.confd = {
+		.bLength = USB_CONFIG_DESCRIPTOR_SIZE,
+		.bDescriptorType = UDESC_CONFIG,
+		.wTotalLength[0] = sizeof(dwc_otg_confd),
+		.bNumInterface = 1,
+		.bConfigurationValue = 1,
+		.iConfiguration = 0,
+		.bmAttributes = UC_SELF_POWERED;
+		.bMaxPower = 0,
+	},
+	.ifcd = {
+		.bLength = USB_INTERFACE_DESCRIPTOR_SIZE,
+		.bDescriptorType = UDESC_INTERFACE,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = 0,
+		.bNumEndpoints = 1,
+		.bInterfaceClass = UICLASS_HUB,
+		.bInterfaceSubClass = UISUBCLASS_HUB,
+		.bInterfaceProtocol = UIPROTO_FSHUB,
+		.iInterface = 0
+	},
+	.endpd = {
 	.bLength = USB_ENDPOINT_DESCRIPTOR_SIZE,
 	.bDescriptorType = UDESC_ENDPOINT,
 	.bEndpointAddress = UE_DIR_IN | DWC_OTG_INTR_ENDPT,
 	.bmAttributes = UE_INTERRUPT,
 	.wMaxPacketSize = {8, 0},			/* max packet */
 	.bInterval = 255,
+	},
 };
 
 
@@ -656,7 +663,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		switch (value) {
 		case C(0, UDESC_DEVICE):
 			l = min(len, USB_DEVICE_DESCRIPTOR_SIZE);
-			USETW(dwc_otg_devd.idVendor, sc->sc_id_vendor);
+// 			USETW(dwc_otg_devd.idVendor, sc->sc_id_vendor);
 			memcpy(buf, &dwc_otg_devd, l);
 			buf += l;
 			len -= l;
@@ -664,20 +671,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 
 			break;
 		case C(0, UDESC_CONFIG):
-			l = min(len, USB_CONFIG_DESCRIPTOR_SIZE);
+			l = min(len, sizeof(dwc_otg_confd));
 			memcpy(buf, &dwc_otg_confd, l);
-			buf += l;
-			len -= l;
-			totlen += l;
-
-			l = min(len, USB_INTERFACE_DESCRIPTOR_SIZE);
-			memcpy(buf, &dwc_otg_ifcd, l);
-			buf += l;
-			len -= l;
-			totlen += l;
-
-			l = min(len, USB_ENDPOINT_DESCRIPTOR_SIZE);
-			memcpy(buf, &dwc_otg_endpd, l);
 			buf += l;
 			len -= l;
 			totlen += l;
