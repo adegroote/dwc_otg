@@ -1194,6 +1194,7 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	sc->sc_bus.hci_private = sc;
 	sc->sc_bus.usbrev = USBREV_2_0;
 	sc->sc_bus.methods = &dwc_otg_bus_methods;
+	sc->sc_bus.pipe_size = sizeof(struct dwc_otg_pipe);
 
 	/* XXXNH */
 	sc->sc_noport = 1;
