@@ -115,7 +115,7 @@ typedef struct dwc_otg_softc {
 	uint32_t sc_irq_mask;
 	uint32_t sc_hprt_val;
 
-
+	uint8_t sc_timer_active;
 	uint8_t	sc_dev_ep_max;
 	uint8_t sc_dev_in_ep_max;
 	uint8_t	sc_host_ch_max;

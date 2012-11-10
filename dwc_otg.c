@@ -1518,13 +1518,27 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 static void
 dwc_otg_timer_start(struct dwc_otg_softc *sc)
 {
-	// XXX implement
+	if (sc->sc_timer_active != 0)
+		return;
+
+	sc->sc_timer_active = 1;
+
+	/* restart timer */
+	callout_reset(&sc->sc_timer,
+	    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+	    &dwc_otg_timer, sc);
 }
 
 static void
 dwc_otg_timer_stop(struct dwc_otg_softc *sc)
 {
-	// XXX implement
+	if (sc->sc_timer_active == 0)
+		return;
+
+	sc->sc_timer_active = 0;
+
+	/* stop timer */
+	callout_stop(&sc->sc_timer);
 }
 
 static void
