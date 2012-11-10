@@ -470,7 +470,7 @@ dwc_otg_rem_ed(dwc_otg_softc_t* sc, dwc_otg_soft_ed_t* sed, dwc_otg_soft_ed_t* h
 	// XXX TODO
 }
 
-Static dwc_otg_soft_ed_t* 
+Static dwc_otg_soft_ed_t*
 dwc_otg_alloc_sed(dwc_otg_softc_t* sc)
 {
 	// XXX TODO
@@ -618,7 +618,7 @@ Static usbd_status
 dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
-	usb_device_request_t* req;
+	usb_device_request_t *req;
 	uint8_t *buf;
 	int port, i;
 	int len, value, index, l, totlen;
@@ -1488,13 +1488,13 @@ dwc_otg_pull_down(struct dwc_otg_softc *sc)
 	}
 }
 
-Static void 	
+Static void
 dwc_otg_clocks_on(dwc_otg_softc_t* sc)
 {
 	/// XXX implement
 }
 
-Static void 	
+Static void
 dwc_otg_clocks_off(dwc_otg_softc_t* sc)
 {
 	// XXX Implement
@@ -1675,7 +1675,7 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 			search for channel that is waiting for SOF
 			if none found
 				disable GINTMSK_SOFMSK
-			 */	
+			 */
 		}
 	}
 
@@ -1745,7 +1745,7 @@ repeat:
 static void
 dwc_otg_root_intr(struct dwc_otg_softc *sc)
 {
-	u_char *p; 
+	u_char *p;
 	usbd_xfer_handle xfer;
 
 	KASSERT(mutex_owned(&sc->sc_lock));
