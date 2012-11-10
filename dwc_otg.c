@@ -1461,7 +1461,7 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 		printf("HCINTMSK       0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCINTMSK(i)));
 		printf("HCTSIZ         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCTSIZ(i)));
 		printf("HCDMA          0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCDMA(i)));
-		printf("HCDMAB         0x%08x\n", DWC_OTG_READ_4(sc,DWC_OTG_HCDMAB(i)));
+		printf("HCDMAB         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCDMAB(i)));
 	}
 
 
