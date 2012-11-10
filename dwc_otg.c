@@ -1870,7 +1870,7 @@ repeat:
 		if (bcnt) {
 			/* read bytes from fifo */
 			bus_space_read_region_4(sc->sc_iot, sc->sc_ioh,
-				DWC_OTG_DFIFO(epno),
+				DOTG_DFIFO(epno),
 				sc->sc_rx_bounce_buffer, (bcnt+3)/4);
 		}
 		/* check if we should dump the data */
