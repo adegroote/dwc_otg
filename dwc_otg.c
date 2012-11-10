@@ -131,7 +131,7 @@ Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
 Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
-Static void		dwc_otg_intr_xxx(dwc_otg_softc_t *);
+Static void		dwc_otg_interrupt_poll(dwc_otg_softc_t *);
 Static void		dwc_otg_root_intr(struct dwc_otg_softc *);
 
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *);
@@ -1726,11 +1726,11 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	}
 
 	/* poll FIFOs */
-	dwc_otg_intr_xxx(sc);
+	dwc_otg_interrupt_poll(sc);
 }
 
 Static void
-dwc_otg_intr_xxx(dwc_otg_softc_t *sc)
+dwc_otg_interrupt_poll(dwc_otg_softc_t *sc)
 {
 	uint8_t ch, epno;
 	uint32_t rx, temp, bcnt, intrs;
