@@ -131,6 +131,8 @@ typedef struct dwc_otg_softc {
 
 	struct dwc_otg_flags sc_flags;
 
+	struct callout sc_timer;
+
 } dwc_otg_softc_t;
 
 struct dwc_otg_xfer {

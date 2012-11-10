@@ -126,6 +126,7 @@ Static void		dwc_otg_pull_up(struct dwc_otg_softc *);
 Static void		dwc_otg_pull_down(struct dwc_otg_softc *);
 Static void 		dwc_otg_clocks_on(dwc_otg_softc_t*);
 Static void	 	dwc_otg_clocks_off(dwc_otg_softc_t*);
+Static void		dwc_otg_timer(void*);
 Static void		dwc_otg_timer_start(struct dwc_otg_softc *);
 Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
 Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
@@ -1199,8 +1200,11 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	/* XXXNH */
 	sc->sc_noport = 1;
 
+	callout_init(&sc->sc_timer, CALLOUT_MPSAFE);
+
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
 	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_SCHED);
+
 
 	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
 		USB_MEM_RESERVE);
@@ -1544,6 +1548,42 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 	/* clear cached status */
 	sc->sc_last_rx_status = 0;
 #endif
+}
+
+Static void
+dwc_otg_timer(void *_sc)
+{
+	struct dwc_otg_softc *sc = _sc;
+	struct usb_xfer *xfer;
+	struct dwc_otg_td *td;
+
+	KASSERT(mutex_owned(&sc->sc_lock));
+
+	DPRINTF("\n");
+
+	/* increment timer value */
+	sc->sc_tmr_val++;
+
+	/* XXX
+	 * for each current transfer, mark td->did_nak to 0.
+	 * For moment, I don't think we store directly this queue
+	 * Follow the FreeBSD code
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
+		td = xfer->td_transfer_cache;
+		if (td != NULL)
+			td->did_nak = 0;
+	}
+	*/
+
+	/* poll jobs */
+	dwc_otg_interrupt_poll(sc);
+
+	if (sc->sc_timer_active) {
+		/* restart timer */
+		callout_reset(&sc->sc_timer,
+		    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+		    &dwc_otg_timer, sc);
+	}
 }
 
 Static void
