@@ -1473,31 +1473,61 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 Static void
 dwc_otg_pull_up(struct dwc_otg_softc *sc)
 {
-	if (!sc->sc_flags.d_pulled_up) {
+	uint32_t temp;
+
+	/* pullup D+, if possible */
+
+	if (!sc->sc_flags.d_pulled_up &&
+	    sc->sc_flags.port_powered) {
 		sc->sc_flags.d_pulled_up = 1;
-		offonbits(sc, DOTG_DCTL, DCTL_SFTDISCON, 0);
+
+		temp = DWC_OTG_READ_4(sc, DOTG_DCTL);
+		temp &= ~DCTL_SFTDISCON;
+		DWC_OTG_WRITE_4(sc, DOTG_DCTL, temp);
 	}
 }
 
 Static void
 dwc_otg_pull_down(struct dwc_otg_softc *sc)
 {
+	uint32_t temp;
+
+	/* pulldown D+, if possible */
+
 	if (sc->sc_flags.d_pulled_up) {
 		sc->sc_flags.d_pulled_up = 0;
-		offonbits(sc, DOTG_DCTL, 0, DCTL_SFTDISCON);
+
+		temp = DWC_OTG_READ_4(sc, DOTG_DCTL);
+		temp |= DCTL_SFTDISCON;
+		DWC_OTG_WRITE_4(sc, DOTG_DCTL, temp);
 	}
 }
 
 Static void
 dwc_otg_clocks_on(dwc_otg_softc_t* sc)
 {
-	/// XXX implement
+	if (sc->sc_flags.clocks_off &&
+	    sc->sc_flags.port_powered) {
+
+		DPRINTFN(5, "\n");
+
+		/* TODO - platform specific */
+
+		sc->sc_flags.clocks_off = 0;
+	}
 }
 
 Static void
 dwc_otg_clocks_off(dwc_otg_softc_t* sc)
 {
-	// XXX Implement
+	if (!sc->sc_flags.clocks_off) {
+
+		DPRINTFN(5, "\n");
+
+		/* TODO - platform specific */
+
+		sc->sc_flags.clocks_off = 1;
+	}
 }
 
 static void
