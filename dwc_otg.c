@@ -1661,7 +1661,48 @@ dwc_otg_resume_irq(struct dwc_otg_softc *sc)
 Static void
 dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
 {
-	// XXX implement
+	if (!sc->sc_flags.status_suspend)
+		return;
+
+	DPRINTFN(5, "Remote wakeup\n");
+
+	if (sc->sc_flags.status_device_mode) {
+		uint32_t temp;
+
+		/* enable remote wakeup signalling */
+		temp = DWC_OTG_READ_4(sc, DOTG_DCTL);
+		temp |= DCTL_RMTWKUPSIG;
+		DWC_OTG_WRITE_4(sc, DOTG_DCTL, temp);
+
+		/* Wait 8ms for remote wakeup to complete. */
+		usb_delay_ms_locked(&sc->sc_bus, 8, &sc->sc_lock);
+
+		temp &= ~DCTL_RMTWKUPSIG;
+		DWC_OTG_WRITE_4(sc, DOTG_DCTL, temp);
+	} else {
+		/* enable USB port */
+		DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0);
+
+		/* wait 10ms */
+		usb_delay_ms_locked(&sc->sc_bus, 10, &sc->sc_lock);
+
+		/* resume port */
+		sc->sc_hprt_val |= HPRT_PRTRES;
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, sc->sc_hprt_val);
+
+		/* Wait 100ms for resume signalling to complete. */
+		usb_delay_ms_locked(&sc->sc_bus, 100, &sc->sc_lock);
+
+		/* clear suspend and resume */
+		sc->sc_hprt_val &= ~(HPRT_PRTSUSP | HPRT_PRTRES);
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, sc->sc_hprt_val);
+
+		/* Wait 4ms */
+		usb_delay_ms_locked(&sc->sc_bus, 4, &sc->sc_lock);
+	}
+
+	/* need to fake resume IRQ */
+	dwc_otg_resume_irq(sc);
 }
 
 #if 0
