@@ -1626,6 +1626,7 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 		// "root_intr" ?
 	}
 
+	/* check for any bus state change interrupts */
 	if (status & GINTSTS_ENUMDONE) {
 		/* enumeration complete, "end of reset" */
 
