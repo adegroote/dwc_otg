@@ -1546,7 +1546,7 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 #endif
 }
 
-static void
+Static void
 dwc_otg_timer_start(struct dwc_otg_softc *sc)
 {
 	if (sc->sc_timer_active != 0)
@@ -1560,7 +1560,7 @@ dwc_otg_timer_start(struct dwc_otg_softc *sc)
 	    &dwc_otg_timer, sc);
 }
 
-static void
+Static void
 dwc_otg_timer_stop(struct dwc_otg_softc *sc)
 {
 	if (sc->sc_timer_active == 0)
@@ -1572,19 +1572,19 @@ dwc_otg_timer_stop(struct dwc_otg_softc *sc)
 	callout_stop(&sc->sc_timer);
 }
 
-static void
+Static void
 dwc_otg_suspend_irq(struct dwc_otg_softc *sc)
 {
 	// XXX implement
 }
 
-static void
+Static void
 dwc_otg_resume_irq(struct dwc_otg_softc *sc)
 {
 	// XXX implement
 }
 
-static void
+Static void
 dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
 {
 	// XXX implement
@@ -1729,7 +1729,7 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	dwc_otg_intr_xxx(sc);
 }
 
-static void
+Static void
 dwc_otg_intr_xxx(dwc_otg_softc_t *sc)
 {
 	uint8_t ch, epno;
@@ -1788,7 +1788,7 @@ repeat:
 }
 
 /* Must be called with the lock helded */
-static void
+Static void
 dwc_otg_root_intr(struct dwc_otg_softc *sc)
 {
 	u_char *p;
