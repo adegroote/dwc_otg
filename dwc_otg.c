@@ -1615,13 +1615,47 @@ dwc_otg_timer_stop(struct dwc_otg_softc *sc)
 Static void
 dwc_otg_suspend_irq(struct dwc_otg_softc *sc)
 {
-	// XXX implement
+	if (!sc->sc_flags.status_suspend) {
+		/* update status bits */
+		sc->sc_flags.status_suspend = 1;
+		sc->sc_flags.change_suspend = 1;
+
+		if (sc->sc_flags.status_device_mode) {
+			/*
+			 * Disable suspend interrupt and enable resume
+			 * interrupt:
+			 */
+			sc->sc_irq_mask &= ~GINTSTS_USBSUSP;
+			sc->sc_irq_mask |= GINTSTS_WKUPINT;
+			DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+		}
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
+	}
 }
 
 Static void
 dwc_otg_resume_irq(struct dwc_otg_softc *sc)
 {
-	// XXX implement
+	if (sc->sc_flags.status_suspend) {
+		/* update status bits */
+		sc->sc_flags.status_suspend = 0;
+		sc->sc_flags.change_suspend = 1;
+
+		if (sc->sc_flags.status_device_mode) {
+			/*
+			 * Disable resume interrupt and enable suspend
+			 * interrupt:
+			 */
+			sc->sc_irq_mask &= ~GINTSTS_WKUPINT;
+			sc->sc_irq_mask |= GINTSTS_USBSUSP;
+			DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+		}
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
+	}
 }
 
 Static void
