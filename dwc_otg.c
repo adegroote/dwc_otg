@@ -1648,7 +1648,7 @@ dwc_otg_start_dma(...)
 }
 
 Static void
-dwc_otg_set_address(strcut dwc_otg_softc *sc, uint8_t addr)
+dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
 {
 	offonbits(sc, DOTG_DCFG,
 		DCFG_DEVADDR_SET(0x7f),
