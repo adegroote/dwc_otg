@@ -108,6 +108,8 @@ typedef struct dwc_otg_softc {
 	int sc_id_vendor;		/* vendor ID for root hub */
 
 	/* From FreeBSD softc */
+	struct callout sc_timer;
+
 	uint32_t sc_rx_bounce_buffer[1024 / 4];
 	uint32_t sc_tx_bounce_buffer[(512 * DWC_OTG_MAX_TXP) / 4];
 
