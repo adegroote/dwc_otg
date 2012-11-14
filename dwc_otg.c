@@ -335,11 +335,6 @@ dwc_otg_root_intr_done(usbd_xfer_handle xfer)
 {
 }
 
-Static void
-dwc_otg_root_ctrl_done(usbd_xfer_handle xfer)
-{
-}
-
 usbd_status
 dwc_otg_device_request(usbd_xfer_handle xfer)
 {
@@ -632,6 +627,10 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		return USBD_IOERROR;
 
 	req = &xfer->request;
+
+	DPRINTFN(4, ("%s: type=0x%02x request=%02x\n", __func__,
+	    req->bmRequestType, req->bRequest));
+
 	len = UGETW(req->wLength);
 	value = UGETW(req->wValue);
 	index = UGETW(req->wIndex);
@@ -657,6 +656,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		}
 		break;
 	case C(UR_GET_DESCRIPTOR, UT_READ_DEVICE):
+		DPRINTFN(8, ("%s: wValue=0x%04x\n", __func__, value));
+
 		if (len == 0)
 			break;
 		switch (value) {
@@ -750,8 +751,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_OTHER):
-		DPRINTFN(9, ("UR_CLEAR_PORT_FEATURE on port %d\n", index));
-
+		DPRINTFN(9, ("%s: UR_CLEAR_FEATURE port=%d feature=%d\n",
+		    __func__, index, value));
 		if (index < 1 || index > sc->sc_noport)
                         goto fail;
 
@@ -827,7 +828,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		totlen = len;
 		break;
 	case C(UR_GET_STATUS, UT_READ_CLASS_OTHER):
-		DPRINTFN(9, "UR_GET_PORT_STATUS\n");
+		DPRINTFN(8, ("%s: get port status i=%d\n", __func__, index));
 
 		if (index < 1 || index > sc->sc_noport)
 			goto fail;
@@ -902,7 +903,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		if (index < 1 || index > sc->sc_noport)
 			goto fail;
 
-		DPRINTFN(9, "UR_SET_PORT_FEATURE\n");
+		DPRINTFN(9, ("UR_SET_PORT_FEATURE\n"));
 
 		switch (value) {
 		case UHF_PORT_ENABLE:
@@ -922,7 +923,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		case UHF_PORT_RESET:
 			if (sc->sc_flags.status_device_mode == 0) {
 
-				DPRINTF("PORT RESET\n");
+				DPRINTF(("PORT RESET\n"));
 
 				/* enable PORT reset */
 				DWC_OTG_WRITE_4(sc, DOTG_HPRT,
@@ -981,12 +982,24 @@ fail:
 Static void
 dwc_otg_root_ctrl_abort(usbd_xfer_handle xfer)
 {
+	DPRINTF(("%s\n", __func__));
+
 	/* Nothing to do, all transfers are synchronous. */
 }
 
 Static void
 dwc_otg_root_ctrl_close(usbd_pipe_handle pipe)
 {
+	DPRINTF(("%s\n", __func__));
+
+	/* Nothing to do. */
+}
+
+Static void
+dwc_otg_root_ctrl_done(usbd_xfer_handle xfer)
+{
+	DPRINTF(("%s\n", __func__));
+
 	/* Nothing to do. */
 }
 
@@ -995,6 +1008,8 @@ dwc_otg_root_intr_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
+
+	DPRINTF(("%s\n", __func__));
 
 	/* Insert last in queue. */
 	mutex_enter(&sc->sc_lock);
@@ -1012,6 +1027,8 @@ dwc_otg_root_intr_start(usbd_xfer_handle xfer)
 {
 	usbd_pipe_handle pipe = xfer->pipe;
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+
+	DPRINTF(("%s\n", __func__));
 
 	if (sc->sc_dying)
 		return (USBD_IOERROR);
@@ -1031,6 +1048,8 @@ dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
 #endif
 
+	DPRINTF(("%s\n", __func__));
+
 	KASSERT(mutex_owned(&sc->sc_lock));
 
 	if (xfer->pipe->intrxfer == xfer) {
@@ -1046,9 +1065,9 @@ dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 {
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
 
-	KASSERT(mutex_owned(&sc->sc_lock));
+	DPRINTF(("%s\n", __func__));
 
-	DPRINTF(("ohci_root_intr_close\n"));
+	KASSERT(mutex_owned(&sc->sc_lock));
 
 	sc->sc_intrxfer = NULL;
 }
@@ -1432,7 +1451,7 @@ dwc_otg_dump_global_regs(dwc_otg_softc_t *sc)
 	printf("GLPMCFG        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GLPMCFG));
 	printf("HPTXFSIZ       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPTXFSIZ));
 
-	n = GHWCFG4_NUMDEVPERIOEPS_GET(DWC_OTG_READ_4(sc, DOTG_HWCFG4));
+	n = GHWCFG4_NUMDEVPERIOEPS_GET(DWC_OTG_READ_4(sc, DOTG_GHWCFG4));
 	for (i=1; i<n; ++i) {
 		printf("DPTXFSIZ[%2d]  0x%08x\n", i,
 			DWC_OTG_READ_4(sc, DOTG_DPTXFSIZ(i)));
@@ -1455,9 +1474,9 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 	printf("HAINT          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HAINT));
 	printf("HAINTMSK       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HAINTMSK));
 	printf("HFLBADDR       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HFLBADDR));
-	printf("HPRT0          0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPRT0));
+	printf("HPRT           0x%08x\n", DWC_OTG_READ_4(sc, DOTG_HPRT));
 
-	n = GHWCFG2_NUMHSTCHNL_GET(DWC_OTG_READ_4(sc, DOTG_HWCFG2));
+	n = GHWCFG2_NUMHSTCHNL_GET(DWC_OTG_READ_4(sc, DOTG_GHWCFG2));
 	for (i=0; i<n; ++i) {
 		printf("Host Channel %d Specific Registers\n", i);
 		printf("HCCHAR         0x%08x\n", DWC_OTG_READ_4(sc,DOTG_HCCHAR(i)));
@@ -1514,7 +1533,7 @@ dwc_otg_clocks_on(dwc_otg_softc_t* sc)
 	if (sc->sc_flags.clocks_off &&
 	    sc->sc_flags.port_powered) {
 
-		DPRINTFN(5, "\n");
+		DPRINTFN(5, ("\n"));
 
 		/* TODO - platform specific */
 
@@ -1527,7 +1546,7 @@ dwc_otg_clocks_off(dwc_otg_softc_t* sc)
 {
 	if (!sc->sc_flags.clocks_off) {
 
-		DPRINTFN(5, "\n");
+		DPRINTFN(5, ("\n"));
 
 		/* TODO - platform specific */
 
@@ -1538,7 +1557,7 @@ dwc_otg_clocks_off(dwc_otg_softc_t* sc)
 static void
 dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 {
-	DPRINTFN(5, "RX status clear\n");
+	DPRINTFN(5, ("RX status clear\n"));
 
 	/* enable RX FIFO level interrupt */
 	sc->sc_irq_mask |= GINTSTS_RXFLVL;
@@ -1559,7 +1578,7 @@ dwc_otg_timer(void *_sc)
 
 	KASSERT(mutex_owned(&sc->sc_lock));
 
-	DPRINTF("\n");
+	DPRINTF(("\n"));
 
 	/* increment timer value */
 	sc->sc_tmr_val++;
@@ -1664,7 +1683,7 @@ dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
 	if (!sc->sc_flags.status_suspend)
 		return;
 
-	DPRINTFN(5, "Remote wakeup\n");
+	DPRINTFN(5, ("Remote wakeup\n"));
 
 	if (sc->sc_flags.status_device_mode) {
 		uint32_t temp;
@@ -1978,7 +1997,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 	tx_start = fifo_size;
 
 	if (fifo_size < 0x40) {
-		DPRINTFN(-1, "Not enough data space for EP0 FIFO.\n");
+		DPRINTFN(-1, ("Not enough data space for EP0 FIFO.\n"));
 		return EINVAL;
 	}
 
