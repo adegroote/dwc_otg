@@ -152,6 +152,12 @@ static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
 #define offonbits(sc, reg, off, on) \
   DWC_OTG_WRITE_4((sc),(reg),(DWC_OTG_READ_4((sc),(reg)) & ~(off)) | (on))
 
+#define dwc_otg_add_intr_list(sc, ex) \
+	TAILQ_INSERT_TAIL(&(sc)->sc_intrhead, (ex), inext);
+#define dwc_otg_del_intr_list(sc, ex) \
+	do { \
+		TAILQ_REMOVE(&sc->sc_intrhead, (ex), inext); \
+	} while (0)
 
 struct dwc_otg_pipe {
 	struct usbd_pipe pipe;
@@ -1224,6 +1230,7 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
 	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_SCHED);
 
+	TAILQ_INIT(&sc->sc_intrhead);
 
 	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
 		USB_MEM_RESERVE);
@@ -1573,8 +1580,8 @@ Static void
 dwc_otg_timer(void *_sc)
 {
 	struct dwc_otg_softc *sc = _sc;
-	struct usb_xfer *xfer;
-	struct dwc_otg_td *td;
+	struct dwc_otg_xfer *xfer;
+	struct dwc_otg_soft_td *td;
 
 	KASSERT(mutex_owned(&sc->sc_lock));
 
@@ -1583,16 +1590,11 @@ dwc_otg_timer(void *_sc)
 	/* increment timer value */
 	sc->sc_tmr_val++;
 
-	/* XXX
-	 * for each current transfer, mark td->did_nak to 0.
-	 * For moment, I don't think we store directly this queue
-	 * Follow the FreeBSD code
-	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
-		td = xfer->td_transfer_cache;
-		if (td != NULL)
-			td->did_nak = 0;
+	TAILQ_FOREACH(xfer, &sc->sc_intrhead, inext) {
+		td = xfer->td;
+		if (td != NULL && td->td != NULL)
+			td->td->did_nak = 0;
 	}
-	*/
 
 	/* poll jobs */
 	dwc_otg_interrupt_poll(sc);

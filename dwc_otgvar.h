@@ -86,6 +86,14 @@ typedef struct dwc_otg_soft_td {
 	int offs;
 } dwc_otg_soft_td_t;
 
+struct dwc_otg_xfer {
+	struct usbd_xfer xfer;
+	struct usb_task	abort_task;
+	TAILQ_ENTRY(dwc_otg_xfer) inext; /* list of active xfers */
+	dwc_otg_soft_td_t *td;
+};
+
+
 typedef struct dwc_otg_softc {
 	device_t sc_dev;
 	struct usbd_bus sc_bus;
@@ -106,6 +114,8 @@ typedef struct dwc_otg_softc {
 
 	char sc_vendor[32];		/* vendor string for root hub */
 	int sc_id_vendor;		/* vendor ID for root hub */
+
+	TAILQ_HEAD(, dwc_otg_xfer) sc_intrhead;
 
 	/* From FreeBSD softc */
 	struct callout sc_timer;
@@ -134,11 +144,6 @@ typedef struct dwc_otg_softc {
 	struct dwc_otg_flags sc_flags;
 
 } dwc_otg_softc_t;
-
-struct dwc_otg_xfer {
-	struct usbd_xfer xfer;
-	struct usb_task	abort_task;
-};
 
 usbd_status	dwc_otg_init(dwc_otg_softc_t *);
 int		dwc_otg_intr(void *);
