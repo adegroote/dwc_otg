@@ -95,6 +95,12 @@ struct dwc_otg_xfer {
 	dwc_otg_soft_td_t *td;
 };
 
+struct dwc_otg_chan_state {
+	uint32_t hcint;
+	uint8_t wait_sof;
+	uint8_t allocated;
+	uint8_t suspended;
+};
 
 typedef struct dwc_otg_softc {
 	device_t sc_dev;
@@ -129,6 +135,9 @@ typedef struct dwc_otg_softc {
 
 	uint32_t sc_fifo_size;
 	uint32_t sc_irq_mask;
+	uint32_t sc_last_rx_status;
+
+	struct dwc_otg_chan_state sc_chan_state[DWC_OTG_MAX_CHANNELS];
 	uint32_t sc_hprt_val;
 	uint32_t sc_tmr_val;	/* timer value */
 
