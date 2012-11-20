@@ -81,6 +81,8 @@ int dwc_otgdebug = 0;
    GINTMSK_HCHINTMSK |			\
    GINTSTS_PRTINT)
 
+#define	DWC_OTG_BUS2SC(bus) ((bus)->hci_private)
+
 struct dwc_otg_pipe;
 
 Static usbd_status	dwc_otg_open(usbd_pipe_handle);
