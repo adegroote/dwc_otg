@@ -1197,23 +1197,45 @@ dwc_otg_root_intr_done(usbd_xfer_handle xfer)
 	DPRINTF(("%s\n", __func__));
 }
 
+
 /***********************************************************************/
 
 Static usbd_status
 dwc_otg_device_ctrl_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	usbd_status err;
+
+	DPRINTF(("%s\n", __func__));
+
+	/* Insert last in queue. */
+	mutex_enter(&sc->sc_lock);
+	err = usb_insert_transfer(xfer);
+	mutex_exit(&sc->sc_lock);
+	if (err)
+		return (err);
+
+	/* Pipe isn't running, start first */
+	return (dwc_otg_device_ctrl_start(SIMPLEQ_FIRST(&xfer->pipe->queue)));
 }
 
 Static usbd_status
 dwc_otg_device_ctrl_start(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+
+	sc = sc;
+	DPRINTF(("%s\n", __func__));
+
+	return USBD_IN_PROGRESS;
+
 }
 
 Static void
 dwc_otg_device_ctrl_abort(usbd_xfer_handle xfer)
 {
+
+	DPRINTF(("%s\n", __func__));
 }
 
 Static void
@@ -1221,6 +1243,10 @@ dwc_otg_device_ctrl_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+
+	dpipe = dpipe;
+	sc = sc;
+	DPRINTF(("%s\n", __func__));
 }
 
 /***********************************************************************/
@@ -1229,18 +1255,39 @@ Static usbd_status
 dwc_otg_device_bulk_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	usbd_status err;
+
+	DPRINTF(("%s\n", __func__));
+
+	/* Insert last in queue. */
+	mutex_enter(&sc->sc_lock);
+	err = usb_insert_transfer(xfer);
+	mutex_exit(&sc->sc_lock);
+	if (err)
+		return err;
+
+	/* Pipe isn't running, start first */
+	return (dwc_otg_device_bulk_start(SIMPLEQ_FIRST(&xfer->pipe->queue)));
 }
 
 Static usbd_status
 dwc_otg_device_bulk_start(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+
+	sc = sc;
+	DPRINTF(("%s\n", __func__));
+
+	return USBD_IN_PROGRESS;
 }
 
 Static void
 dwc_otg_device_bulk_abort(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	DPRINTF(("%s\n", __func__));
+
+	sc = sc;
 }
 
 Static void
@@ -1261,6 +1308,19 @@ Static usbd_status
 dwc_otg_device_intr_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	usbd_status err;
+
+	DPRINTF(("%s\n", __func__));
+
+	/* Insert last in queue. */
+	mutex_enter(&sc->sc_lock);
+	err = usb_insert_transfer(xfer);
+	mutex_exit(&sc->sc_lock);
+	if (err)
+		return err;
+
+	/* Pipe isn't running, start first */
+	return (dwc_otg_device_intr_start(SIMPLEQ_FIRST(&xfer->pipe->queue)));
 }
 
 Static usbd_status
@@ -1303,6 +1363,19 @@ usbd_status
 dwc_otg_device_isoc_transfer(usbd_xfer_handle xfer)
 {
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	usbd_status err;
+
+	DPRINTF(("%s\n", __func__));
+
+	/* Insert last in queue. */
+	mutex_enter(&sc->sc_lock);
+	err = usb_insert_transfer(xfer);
+	mutex_exit(&sc->sc_lock);
+	if (err)
+		return err;
+
+	/* Pipe isn't running, start first */
+	return (dwc_otg_device_isoc_start(SIMPLEQ_FIRST(&xfer->pipe->queue)));
 }
 
 void
