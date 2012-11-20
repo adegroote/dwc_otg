@@ -191,6 +191,7 @@ static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
 struct dwc_otg_pipe {
 	struct usbd_pipe pipe;
 
+#if 0
 	dwc_otg_soft_ed_t *sed;
 	union {
 		struct {
@@ -202,6 +203,7 @@ struct dwc_otg_pipe {
 		struct {
 		} iso;
 	} u;
+#endif
 };
 
 #define DWC_OTG_INTR_ENDPT 1
