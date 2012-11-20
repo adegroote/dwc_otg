@@ -1628,38 +1628,55 @@ dwc_otg_detach(struct dwc_otg_softc *sc, int flags)
 	if (sc->sc_child != NULL)
 		rv = config_detach(sc->sc_child, flags);
 
-	if (rv != 0)
-		return (rv);
+	return rv;
 }
 
 bool
 dwc_otg_shutdown(device_t self, int flags)
 {
 	dwc_otg_softc_t *sc = device_private(self);
+
+	sc = sc;
+
+	return true;
 }
 
 void
 dwc_otg_childdet(device_t self, device_t child)
 {
 	struct dwc_otg_softc *sc = device_private(self);
+
+	sc = sc;
 }
 
 int
 dwc_otg_activate(device_t self, enum devact act)
 {
 	struct dwc_otg_softc *sc = device_private(self);
+
+	sc = sc;
+
+	return 0;
 }
 
 bool
 dwc_otg_resume(device_t dv, const pmf_qual_t *qual)
 {
 	dwc_otg_softc_t *sc = device_private(dv);
+
+	sc = sc;
+
+	return true;
 }
 
 bool
 dwc_otg_suspend(device_t dv, const pmf_qual_t *qual)
 {
 	dwc_otg_softc_t *sc = device_private(dv);
+
+	sc = sc;
+
+	return true;
 }
 
 /***********************************************************************/
