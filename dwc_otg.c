@@ -189,21 +189,11 @@ static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
 	} while (0)
 
 struct dwc_otg_pipe {
-	struct usbd_pipe pipe;
+	struct usbd_pipe pipe;		/* Must be first */
 
-#if 0
-	dwc_otg_soft_ed_t *sed;
-	union {
-		struct {
-		} ctl;
-		struct {
-		} intr;
-		struct {
-		} bulk;
-		struct {
-		} iso;
-	} u;
-#endif
+	int chan
+	uint32_t hcchar;
+	uint32_t hcsplt;
 };
 
 #define DWC_OTG_INTR_ENDPT 1
