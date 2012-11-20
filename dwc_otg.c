@@ -191,9 +191,10 @@ static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
 struct dwc_otg_pipe {
 	struct usbd_pipe pipe;		/* Must be first */
 
-	int chan
+	int chan;
 	uint32_t hcchar;
 	uint32_t hcsplt;
+	uint8_t tmr_res;
 };
 
 #define DWC_OTG_INTR_ENDPT 1
@@ -574,9 +575,8 @@ dwc_otg_poll(struct usbd_bus *bus)
 Static void
 dwc_otg_close_pipe(usbd_pipe_handle pipe, dwc_otg_soft_ed_t *head)
 {
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
+	//struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
-	dwc_otg_soft_ed_t *sed = dpipe->sed;
 
 	usb_delay_ms(&sc->sc_bus, 1);
 }
@@ -609,6 +609,7 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 	}
 	xfer->hcflags |= UXFER_ABORTING;
 
+#ifdef notyet
 	/* XXX Where does come from the channel for now ? */
 	DWC_OTG_WRITE_4(sc, DOTG_HCINTMSK(ch), HCINTMSK_CHHLTDMSK);
 	DWC_OTG_WRITE_4(sc, DOTG_HCINT(ch), ~HCINTMSK_CHHLTDMSK);
@@ -617,6 +618,7 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 		return;
 
 	offonbits(sc, DOTG_HCCHAR(ch), HCCHAR_CHENA, HCCHAR_CHDIS);
+#endif
 }
 
 Static void
@@ -726,12 +728,10 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
 	usb_device_request_t *req;
 	uint8_t *buf;
-	int port, i;
 	int len, value, index, l, totlen;
 	usb_port_status_t ps;
 	usb_hub_descriptor_t hubd;
 	usbd_status err = USBD_IOERROR;
-	uint32_t v;
 
 	if (sc->sc_dying)
 		return USBD_IOERROR;
@@ -1449,6 +1449,7 @@ usbd_status
 dwc_otg_init(dwc_otg_softc_t *sc)
 {
 	uint32_t temp;
+	int i;
 
 	sc->sc_bus.hci_private = sc;
 	sc->sc_bus.usbrev = USBREV_2_0;
@@ -2075,7 +2076,7 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 
 	if (status & GINTSTS_PRTINT) {
 		sc->sc_hprt_val = DWC_OTG_READ_4(sc, DOTG_HPRT);
-		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (hprt & (
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (sc->sc_hprt_val & (
 			HPRT_PRTPWR | HPRT_PRTENCHNG |
 			HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
 			sc->sc_hprt_val);
@@ -2116,6 +2117,8 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 
 	/* poll FIFOs */
 	dwc_otg_interrupt_poll(sc);
+
+	return 1;
 }
 
 Static void
@@ -2236,7 +2239,9 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 static int
 dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 {
+#ifdef notyet
 	struct dwc_otg_profile *pf;
+#endif
 	uint32_t fifo_size;
 	uint32_t fifo_regs;
 	uint32_t tx_start;
