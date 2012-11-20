@@ -578,27 +578,7 @@ dwc_otg_close_pipe(usbd_pipe_handle pipe, dwc_otg_soft_ed_t *head)
 	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
 	dwc_otg_soft_ed_t *sed = dpipe->sed;
 
-	dwc_otg_rem_ed(sc, sed, head);
 	usb_delay_ms(&sc->sc_bus, 1);
-	dwc_otg_free_sed(sc, dpipe->sed);
-}
-
-Static void
-dwc_otg_rem_ed(dwc_otg_softc_t* sc, dwc_otg_soft_ed_t* sed, dwc_otg_soft_ed_t* head)
-{
-	// XXX TODO
-}
-
-Static dwc_otg_soft_ed_t*
-dwc_otg_alloc_sed(dwc_otg_softc_t* sc)
-{
-	// XXX TODO
-}
-
-Static void
-dwc_otg_free_sed(dwc_otg_softc_t* sc, dwc_otg_soft_ed_t* sed)
-{
-	// XXX TODO
 }
 
 
