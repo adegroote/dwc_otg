@@ -1695,8 +1695,8 @@ dwc_otg_dump_global_regs(dwc_otg_softc_t *sc)
 	printf("GRSTCTL        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRSTCTL));
 	printf("GINTSTS        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GINTSTS));
 	printf("GINTMSK        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GINTMSK));
-	printf("GRXSTSR        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSR));
-	printf("GRXSTSP        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSP));
+	printf("GRXSTSRD       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSRD));
+	printf("GRXSTSPD       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXSTSPD));
 	printf("GRXFSIZ        0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GRXFSIZ));
 	printf("GNPTXFSIZ      0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GNPTXFSIZ));
 	printf("GNPTXSTS       0x%08x\n", DWC_OTG_READ_4(sc, DOTG_GNPTXSTS));
