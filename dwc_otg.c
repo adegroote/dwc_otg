@@ -445,10 +445,13 @@ dwc_otg_open(usbd_pipe_handle pipe)
 	usb_endpoint_descriptor_t *ed = pipe->endpoint->edesc;
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
 	uint8_t addr = dev->address;
-	uint8_t xfertype = ed->bmAttributes & UE_XFERTYPE;
-	dwc_otg_soft_ed_t *sed;
-	dwc_otg_soft_td_t *std;
+	uint8_t xfertype = UE_GET_XFERTYPE(ed->bmAttributes);
+	uint8_t epnum = UE_GET_ADDR(ed->bmAttributes);
+	uint32_t hcchar, hcsplt, ival;
 	usbd_status err;
+
+	DPRINTF(("%s: addr %d xfertype %d dir %s\n", __func__, addr, xfertype,
+	    UE_GET_DIR(ed->bmAttributes) == UE_DIR_IN ? "in" : "out"));
 
 	if (sc->sc_dying) {
 		err = USBD_IOERROR;
@@ -464,27 +467,99 @@ dwc_otg_open(usbd_pipe_handle pipe)
 			pipe->methods = &dwc_otg_root_intr_methods;
 			break;
 		default:
-			err = USBD_INVAL;
-			goto fail;
+			DPRINTF(("%s: bad bEndpointAddress 0x%02x\n", __func__,
+			    ed->bEndpointAddress));
+			return USBD_INVAL;
 		}
-	} else {
-		sed = dwc_otg_alloc_sed(sc);
-		if (sed == NULL)
-			goto fail;
-		dpipe->sed = sed;
-		if (xfertype == UE_ISOCHRONOUS) {
-			// XXX ...
-		} else {
-		}
-
-		switch (xfertype) {
-		case UE_CONTROL:
-		case UE_INTERRUPT:
-		case UE_ISOCHRONOUS:
-		case UE_BULK:
-			break;
-		}
+		DPRINTF(("%s: root hub pipe open\n", __func__));
+		return USBD_NORMAL_COMPLETION;
 	}
+
+	switch (xfertype) {
+	case UE_CONTROL:
+		pipe->methods = &dwc_otg_device_ctrl_methods;
+		DPRINTF(("%s: UE_CONTROL methods\n", __func__));
+		break;
+	case UE_INTERRUPT:
+		DPRINTF(("%s: UE_INTERRUPT methods\n", __func__));
+		pipe->methods = &dwc_otg_device_intr_methods;
+		break;
+	case UE_ISOCHRONOUS:
+		DPRINTF(("%s: US_ISOCHRONOUS methods\n", __func__));
+		pipe->methods = &dwc_otg_device_isoc_methods;
+		break;
+	case UE_BULK:
+		DPRINTF(("%s: UE_BULK methods\n", __func__));
+		pipe->methods = &dwc_otg_device_bulk_methods;
+		break;
+	default:
+		DPRINTF(("%s: bad xfer type %d\n", __func__, xfertype));
+		return USBD_INVAL;
+	}
+
+	hcsplt = 0;
+	hcchar = HCCHAR_CHENA |
+	    (addr << HCCHAR_DEVADDR_SHIFT) |
+	    (xfertype << HCCHAR_EPTYPE_SHIFT) |
+	    (epnum << HCCHAR_EPNUM_SHIFT) |
+	    ((UGETW(ed->wMaxPacketSize)) << HCCHAR_MPS_SHIFT);
+
+	if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN)
+		hcchar |= HCCHAR_EPDIR_IN;
+
+	switch (dev->speed) {
+	case USB_SPEED_LOW:
+		DPRINTF(("%s: USB_SPEED_LOW\n", __func__));
+		hcchar |= HCCHAR_LSPDDEV;
+		/* FALLTHROUGH */
+	case USB_SPEED_FULL:
+		DPRINTF(("%s: USB_SPEED_FULL\n", __func__));
+		/* check if root HUB port is running High Speed */
+		if (sc->sc_flags.status_high_speed != 0) {
+			hcsplt = HCSPLT_SPLTENA |
+			    (dev->myhsport->portno << HCSPLT_PRTADDR_SHIFT) |
+			    (dev->myhsport->parent->address <<
+			    HCSPLT_HUBADDR_SHIFT);
+			if (xfertype == UE_ISOCHRONOUS)  /* XXX */
+				hcsplt |= (3 << HCSPLT_XACTPOS_SHIFT);
+		}
+		break;
+
+	case USB_SPEED_HIGH:
+		DPRINTF(("%s: USB_SPEED_HIGH\n", __func__));
+		if (xfertype == UE_ISOCHRONOUS || xfertype == UE_INTERRUPT) {
+			hcchar |= (/*(xfer->max_packet_count & 3)*/ 1
+				<< HCCHAR_MC_SHIFT);
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	int fps_shift = 1;
+
+	switch (xfertype) {
+	case UE_ISOCHRONOUS:
+		ival = 1 << fps_shift;
+		break;
+	case UE_INTERRUPT:
+		ival = pipe->interval / DWC_OTG_HOST_TIMER_RATE;
+		if (ival == 0)
+			ival = 1;
+		else if (ival > 127)
+			ival = 127;
+		break;
+	default:
+		ival = 0;
+	}
+
+	dpipe->hcchar = hcchar;
+	dpipe->hcsplt = hcsplt;
+	dpipe->tmr_res = ival;
+
+	DPRINTF(("%s: hcchar 0x%08x hcchar 0x%08x ival %d\n", __func__, hcchar,
+	    hcsplt, ival));
 
 	return USBD_NORMAL_COMPLETION;
 
