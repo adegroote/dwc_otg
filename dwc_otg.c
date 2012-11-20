@@ -133,7 +133,7 @@ Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
 Static void		dwc_otg_interrupt_poll(dwc_otg_softc_t *);
-Static void		dwc_otg_root_intr(struct dwc_otg_softc *);
+Static void		dwc_otg_rhc(void *);
 
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *);
 
@@ -1232,6 +1232,9 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 
 	TAILQ_INIT(&sc->sc_intrhead);
 
+	sc->sc_rhc_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
+	    dwc_otg_rhc, sc);
+
 	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
 		USB_MEM_RESERVE);
 
@@ -1652,7 +1655,7 @@ dwc_otg_suspend_irq(struct dwc_otg_softc *sc)
 		}
 
 		/* complete root HUB interrupt endpoint */
-		dwc_otg_root_intr(sc);
+		softint_schedule(sc->sc_rhc_si);
 	}
 }
 
@@ -1675,7 +1678,7 @@ dwc_otg_resume_irq(struct dwc_otg_softc *sc)
 		}
 
 		/* complete root HUB interrupt endpoint */
-		dwc_otg_root_intr(sc);
+		softint_schedule(sc->sc_rhc_si);
 	}
 }
 
@@ -1925,25 +1928,33 @@ repeat:
 
 /* Must be called with the lock helded */
 Static void
-dwc_otg_root_intr(struct dwc_otg_softc *sc)
+dwc_otg_rhc(void *addr)
 {
-	u_char *p;
+	struct dwc_otg_softc *sc = addr;
 	usbd_xfer_handle xfer;
+	usbd_pipe_handle pipe;
+	u_char *p;
 
-	KASSERT(mutex_owned(&sc->sc_lock));
+	mutex_enter(&sc->sc_lock);
 
 	xfer = sc->sc_intrxfer;
 	if (xfer == NULL) {
 		/* Just ignore the change. */
+		mutex_exit(&sc->sc_lock);
 		return;
 	}
 
+	/* set port bit */
+	pipe = xfer->pipe;
+
 	p = KERNADDR(&xfer->dmabuf, 0);
 	p[0]= 0x02; /* we only have one port */
-	xfer->actlen = 1;
+
+	xfer->actlen = xfer->length;
 	xfer->status = USBD_NORMAL_COMPLETION;
 
 	usb_transfer_complete(xfer);
+	mutex_exit(&sc->sc_lock);
 }
 
 Static void
@@ -1956,7 +1967,8 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 	if (temp & (GOTGCTL_ASESVLD | GOTGCTL_BSESVLD)) {
 		if (!sc->sc_flags.status_vbus) {
 			sc->sc_flags.status_vbus = 1;
-			dwc_otg_root_intr(sc);
+			/* complete root HUB interrupt endpoint */
+			softint_schedule(sc->sc_rhc_si);
 		}
 	} else {
 		if (sc->sc_flags.status_vbus) {
@@ -1965,7 +1977,8 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 			sc->sc_flags.status_suspend = 0;
 			sc->sc_flags.change_suspend = 0;
 			sc->sc_flags.change_connect = 1;
-			dwc_otg_root_intr(sc);
+			/* complete root HUB interrupt endpoint */
+			softint_schedule(sc->sc_rhc_si);
 		}
 	}
 }

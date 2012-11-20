@@ -106,6 +106,8 @@ typedef struct dwc_otg_softc {
 	kmutex_t sc_lock;
 	kmutex_t sc_intr_lock;
 
+	void *sc_rhc_si;
+
 	int sc_noport;
 
 	usbd_xfer_handle sc_intrxfer;
