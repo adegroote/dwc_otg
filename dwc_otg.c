@@ -1191,6 +1191,12 @@ dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 	sc->sc_intrxfer = NULL;
 }
 
+Static void
+dwc_otg_root_intr_done(usbd_xfer_handle xfer)
+{
+	DPRINTF(("%s\n", __func__));
+}
+
 /***********************************************************************/
 
 Static usbd_status
