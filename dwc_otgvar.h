@@ -23,12 +23,14 @@ struct dwc_otg_flags {
 
 struct dwc_otg_td;
 
+#if 0
 typedef uint8_t (dwc_otg_cmd_t)(struct dwc_otg_td *td);
+#endif
 
 typedef struct dwc_otg_td {
 	struct dwc_otg_td *obj_next;
-	dwc_otg_cmd_t *func;
 #if 0
+	dwc_otg_cmd_t *func;
 	struct usb_page_cache *pc;
 #else
 	usbd_xfer_handle xfer;
