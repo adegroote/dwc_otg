@@ -1,4 +1,7 @@
-It is an attempt to write a driver for the dwc_otg usb controller for NetBSD.
-The driver is inspired from FreeBSD one.
+It is an attempt to write missing driver for the Rasberry Pi for NetBSD,
+including:
+   - the usb controller host dwc_otg
+   - the ethernet card smsc 95xx
 
-At the moment, it is not even compile :)
+We start from the FreeBSD one. At the moment, the dwc_otg compiles and attaches
+succesfully but is not really capable. 
