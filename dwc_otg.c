@@ -1817,6 +1817,19 @@ dwc_otg_clocks_off(dwc_otg_softc_t* sc)
 }
 
 static void
+dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
+{
+	uint32_t temp;
+
+	DPRINTFN(5, ("addr=%d\n", addr));
+
+	temp = DWC_OTG_READ_4(sc, DOTG_DCFG);
+	temp &= ~DCFG_DEVADDR_SET(0x7F);
+	temp |= DCFG_DEVADDR_SET(addr);
+	DWC_OTG_WRITE_4(sc, DOTG_DCFG, temp);
+}
+
+static void
 dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 {
 	DPRINTFN(5, ("RX status clear\n"));
@@ -2056,66 +2069,192 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 	status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
 	DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
 
+	DPRINTFN(14, ("GINTSTS=0x%08x HAINT=0x%08x HFNUM=0x%08x\n",
+	    status, DWC_OTG_READ_4(sc, DOTG_HAINT),
+	    DWC_OTG_READ_4(sc, DOTG_HFNUM)));
+
 	if (status & GINTSTS_USBRST) {
-		/* USB reset */
-		// "root_intr" ?
+		/* set correct state */
+		sc->sc_flags.status_device_mode = 1;
+		sc->sc_flags.status_bus_reset = 0;
+		sc->sc_flags.status_suspend = 0;
+		sc->sc_flags.change_suspend = 0;
+		sc->sc_flags.change_connect = 1;
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
 	}
 
 	/* check for any bus state change interrupts */
 	if (status & GINTSTS_ENUMDONE) {
-		/* enumeration complete, "end of reset" */
+		uint32_t temp;
 
-		/*
-		reset FIFOs
-		reset function address
-		figure out enumeration speed
-		disable resume and enable suspend interrupt
-		"root_intr" ?
-		*/
+		DPRINTFN(5, ("end of reset\n"));
+
+		/* set correct state */
+		sc->sc_flags.status_device_mode = 1;
+		sc->sc_flags.status_bus_reset = 1;
+		sc->sc_flags.status_suspend = 0;
+		sc->sc_flags.change_suspend = 0;
+		sc->sc_flags.change_connect = 1;
+		sc->sc_flags.status_low_speed = 0;
+		sc->sc_flags.port_enabled = 1;
+
+		/* reset FIFOs */
+		dwc_otg_init_fifo(sc, DWC_MODE_DEVICE);
+
+		/* reset function address */
+		dwc_otg_set_address(sc, 0);
+
+		/* figure out enumeration speed */
+		temp = DWC_OTG_READ_4(sc, DOTG_DSTS);
+		if (DSTS_ENUMSPD_GET(temp) == DSTS_ENUMSPD_HI)
+			sc->sc_flags.status_high_speed = 1;
+		else
+			sc->sc_flags.status_high_speed = 0;
+
+		/* disable resume interrupt and enable suspend interrupt */
+		
+		sc->sc_irq_mask &= ~GINTSTS_WKUPINT;
+		sc->sc_irq_mask |= GINTSTS_USBSUSP;
+		DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
 	}
 
 	if (status & GINTSTS_PRTINT) {
-		sc->sc_hprt_val = DWC_OTG_READ_4(sc, DOTG_HPRT);
-		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (sc->sc_hprt_val & (
-			HPRT_PRTPWR | HPRT_PRTENCHNG |
-			HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
-			sc->sc_hprt_val);
+		uint32_t hprt;
 
-		if (sc->sc_hprt_val & HPRT_PRTSUSP)
+		hprt = DWC_OTG_READ_4(sc, DOTG_HPRT);
+
+		/* clear change bits */
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (hprt & (
+		    HPRT_PRTPWR | HPRT_PRTENCHNG |
+		    HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
+		    sc->sc_hprt_val);
+
+		DPRINTFN(12, ("GINTSTS=0x%08x, HPRT=0x%08x\n", status, hprt));
+
+		sc->sc_flags.status_device_mode = 0;
+
+		if (hprt & HPRT_PRTCONNSTS)
+			sc->sc_flags.status_bus_reset = 1;
+		else
+			sc->sc_flags.status_bus_reset = 0;
+
+		if (hprt & HPRT_PRTENCHNG)
+			sc->sc_flags.change_enabled = 1;
+
+		if (hprt & HPRT_PRTENA)
+			sc->sc_flags.port_enabled = 1;
+		else
+			sc->sc_flags.port_enabled = 0;
+
+		if (hprt & HPRT_PRTOVRCURRCHNG)
+			sc->sc_flags.change_over_current = 1;
+
+		if (hprt & HPRT_PRTOVRCURRACT)
+			sc->sc_flags.port_over_current = 1;
+		else
+			sc->sc_flags.port_over_current = 0;
+
+		if (hprt & HPRT_PRTPWR)
+			sc->sc_flags.port_powered = 1;
+		else
+			sc->sc_flags.port_powered = 0;
+
+		if (((hprt & HPRT_PRTSPD_MASK)
+		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_LOW)
+			sc->sc_flags.status_low_speed = 1;
+		else
+			sc->sc_flags.status_low_speed = 0;
+
+		if (((hprt & HPRT_PRTSPD_MASK)
+		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_HIGH)
+			sc->sc_flags.status_high_speed = 1;
+		else
+			sc->sc_flags.status_high_speed = 0;
+
+		if (hprt & HPRT_PRTCONNDET)
+			sc->sc_flags.change_connect = 1;
+
+		if (hprt & HPRT_PRTSUSP)
 			dwc_otg_suspend_irq(sc);
 		else
 			dwc_otg_resume_irq(sc);
-		//"root_intr" ?
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
 	}
 
+	/*
+	 * If resume and suspend is set at the same time we interpret
+	 * that like RESUME. Resume is set when there is at least 3
+	 * milliseconds of inactivity on the USB BUS.
+	 */
 	if (status & GINTSTS_WKUPINT) {
-		dwc_otg_resume_irq(sc);
-	}
 
-	if (status & GINTSTS_USBSUSP) {
+		DPRINTFN(5, ("resume interrupt\n"));
+
+		dwc_otg_resume_irq(sc);
+
+	} else if (status & GINTSTS_USBSUSP) {
+
+		DPRINTFN(5, ("suspend interrupt\n"));
+
 		dwc_otg_suspend_irq(sc);
 	}
+	/* check VBUS */
+	if (status & (GINTSTS_USBSUSP |
+	    GINTSTS_USBRST |
+	    GINTMSK_OTGINTMSK |
+	    GINTSTS_SESSREQINT)) {
+		uint32_t temp;
 
-	if (status & (GINTSTS_USBSUSP | GINTSTS_USBRST | GINTMSK_OTGINTMSK | GINTSTS_SESSREQINT)) {
+		temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
+
+		DPRINTFN(5, ("GOTGCTL=0x%08x\n", temp));
+
 		dwc_otg_vbus_interrupt(sc);
 	}
 
+	/* clear all IN endpoint interrupts */
 	if (status & GINTSTS_IEPINT) {
-		/* clear all IN endpoint interrupts */
-	}
+		uint32_t temp;
+		uint8_t x;
 
-	if (status & GINTSTS_SOF) {
-		if (sc->sc_irq_mask & GINTMSK_SOFMSK) {
-			/*
-			 * XXX TODO
-			search for channel that is waiting for SOF
-			if none found
-				disable GINTMSK_SOFMSK
-			 */
+		for (x = 0; x != sc->sc_dev_in_ep_max; x++) {
+			temp = DWC_OTG_READ_4(sc, DOTG_DIEPINT(x));
+			if (temp & DIEPMSK_XFERCOMPLMSK) {
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPINT(x),
+				    DIEPMSK_XFERCOMPLMSK);
+			}
 		}
 	}
 
-	/* poll FIFOs */
+	/* check for SOF interrupt */
+	if (status & GINTSTS_SOF) {
+		if (sc->sc_irq_mask & GINTMSK_SOFMSK) {
+			uint8_t x;
+			uint8_t y;
+
+			DPRINTFN(12, ("SOF interrupt\n"));
+
+			for (x = y = 0; x != sc->sc_host_ch_max; x++) {
+				if (sc->sc_chan_state[x].wait_sof != 0) {
+					if (--(sc->sc_chan_state[x].wait_sof) != 0)
+						y = 1;
+				}
+			}
+			if (y == 0) {
+				sc->sc_irq_mask &= ~GINTMSK_SOFMSK; 
+				DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+			}
+		}
+	}
+
+	/* poll FIFO(s) */
 	dwc_otg_interrupt_poll(sc);
 
 	return 1;
