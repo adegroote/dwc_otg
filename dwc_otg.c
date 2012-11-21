@@ -1824,10 +1824,8 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 	sc->sc_irq_mask |= GINTSTS_RXFLVL;
 	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
 
-#ifdef notyet
 	/* clear cached status */
 	sc->sc_last_rx_status = 0;
-#endif
 }
 
 Static void
@@ -2124,59 +2122,109 @@ dwc_otg_intr1(dwc_otg_softc_t *sc)
 Static void
 dwc_otg_interrupt_poll(dwc_otg_softc_t *sc)
 {
-	uint8_t ch, epno;
-	uint32_t rx, temp, bcnt, intrs;
+	uint32_t temp;
+	uint8_t got_rx_status;
+	uint8_t x;
 
 repeat:
-	for (ch = 0; ch < sc->sc_host_ch_max; ++ch) {
-		intrs = DWC_OTG_READ_4(sc, DOTG_HCINT(ch));
-		DWC_OTG_WRITE_4(sc, DOTG_HCINT(ch), intrs);
+	/* get all channel interrupts */
+	for (x = 0; x != sc->sc_host_ch_max; x++) {
+		temp = DWC_OTG_READ_4(sc, DOTG_HCINT(x));
+		if (temp != 0) {
+			DWC_OTG_WRITE_4(sc, DOTG_HCINT(x), temp);
+			temp &= ~HCINT_SOFTWARE_ONLY;
+			sc->sc_chan_state[x].hcint |= temp;
+		}
 	}
 
-	rx = 0;
-	temp = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
-	if (temp & GINTSTS_RXFLVL)
-		rx = DWC_OTG_READ_4(sc, DOTG_GRXSTSPD);
+	if (sc->sc_last_rx_status == 0) {
 
-	switch (rx & GRXSTSRD_PKTSTS_MASK) {
-	case GRXSTSRD_STP_DATA:
-	case GRXSTSRD_OUT_DATA:
-		bcnt = GRXSTSRD_BCNT_GET(rx);
-		epno = GRXSTSRD_CHNUM_GET(rx);
-
-		if (bcnt) {
-			/* read bytes from fifo */
-			bus_space_read_region_4(sc->sc_iot, sc->sc_ioh,
-				DOTG_DFIFO(epno),
-				sc->sc_rx_bounce_buffer, (bcnt+3)/4);
+		temp = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
+		if (temp & GINTSTS_RXFLVL) {
+			/* pop current status */
+			sc->sc_last_rx_status =
+			    DWC_OTG_READ_4(sc, DOTG_GRXSTSPD);
 		}
+
+		if (sc->sc_last_rx_status != 0) {
+
+			uint8_t ep_no;
+
+			temp = sc->sc_last_rx_status &
+			    GRXSTSRD_PKTSTS_MASK;
+
+			/* non-data messages we simply skip */
+			if (temp != GRXSTSRD_STP_DATA &&
+			    temp != GRXSTSRD_OUT_DATA) {
+				dwc_otg_common_rx_ack(sc);
+				goto repeat;
+			}
+
+			temp = GRXSTSRD_BCNT_GET(
+			    sc->sc_last_rx_status);
+			ep_no = GRXSTSRD_CHNUM_GET(
+			    sc->sc_last_rx_status);
+
+			/* receive data, if any */
+			if (temp != 0) {
+				DPRINTF(("Reading %d bytes from ep %d\n", temp, ep_no));
+				bus_space_read_region_4(sc->sc_iot, sc->sc_ioh,
+					DOTG_DFIFO(ep_no),
+					sc->sc_rx_bounce_buffer, (temp+3)/4);
+			}
+
+			/* check if we should dump the data */
+			if (!(sc->sc_active_rx_ep & (1U << ep_no))) {
+				dwc_otg_common_rx_ack(sc);
+				goto repeat;
+			}
+
+			got_rx_status = 1;
+
+			DPRINTFN(5, ("RX status = 0x%08x: ch=%d pid=%d bytes=%d sts=%d\n",
+			    sc->sc_last_rx_status, ep_no,
+			    (sc->sc_last_rx_status >> 15) & 3,
+			    GRXSTSRD_BCNT_GET(sc->sc_last_rx_status),
+			    (sc->sc_last_rx_status >> 17) & 15));
+		} else {
+			got_rx_status = 0;
+		}
+	} else {
+		uint8_t ep_no;
+
+		ep_no = GRXSTSRD_CHNUM_GET(
+		    sc->sc_last_rx_status);
+
 		/* check if we should dump the data */
-		if (!(sc->sc_active_rx_ep & (1U << epno))) {
+		if (!(sc->sc_active_rx_ep & (1U << ep_no))) {
 			dwc_otg_common_rx_ack(sc);
 			goto repeat;
 		}
-		break;
-	default:
-		epno = GRXSTSRD_CHNUM_GET(rx);
 
-		if (!(sc->sc_active_rx_ep & (1U << epno))) {
-			dwc_otg_common_rx_ack(sc);
-			goto repeat;
-		}
-		break;
+		got_rx_status = 1;
 	}
 
 #ifdef notyet
-	poll transfers
-	if ("queue has been modified") goto repeat
+	//poll transfers
+	//if ("queue has been modified") goto repeat
+	//
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
+		if (!dwc_otg_xfer_do_fifo(xfer)) {
+			/* queue has been modified */
+			goto repeat;
+		}
+	}
 #endif
 
-	if (rx == 0)
-		goto repeat;
+	if (got_rx_status) {
+		/* check if data was consumed */
+		if (sc->sc_last_rx_status == 0)
+			goto repeat;
 
-	/* disable RX FIFO level interrupt */
-	sc->sc_irq_mask &= ~GINTSTS_RXFLVL;
-	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+		/* disable RX FIFO level interrupt */
+		sc->sc_irq_mask &= ~GINTSTS_RXFLVL;
+		DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+	}
 }
 
 /* Must be called with the lock helded */
