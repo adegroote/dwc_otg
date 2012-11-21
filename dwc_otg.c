@@ -1835,9 +1835,10 @@ dwc_otg_timer(void *_sc)
 	struct dwc_otg_xfer *xfer;
 	struct dwc_otg_soft_td *td;
 
-	KASSERT(mutex_owned(&sc->sc_lock));
-
-	DPRINTF(("\n"));
+	/* XXX locking
+	   KASSERT(mutex_owned(&sc->sc_lock));
+	   DPRINTF(("\n"));
+	*/
 
 	/* increment timer value */
 	sc->sc_tmr_val++;
