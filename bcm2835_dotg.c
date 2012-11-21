@@ -48,12 +48,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <dev/usb/dwc_otgvar.h>
 
 struct bcmdotg_softc {
-// 	device_t		sc_dev;
 	struct dwc_otg_softc	sc_dotg;
 
-// 	bus_space_tag_t		sc_iot;
-// 	bus_space_handle_t	sc_ioh;
-// 	bus_dma_tag_t		sc_dmat;
 	void			*sc_ih;
 };
 
