@@ -172,6 +172,7 @@ Static dwc_otg_soft_ed_t* dwc_otg_alloc_sed(dwc_otg_softc_t*);
 Static void		dwc_otg_free_sed(dwc_otg_softc_t*, dwc_otg_soft_ed_t* );
 
 static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
+static void dwc_otg_root_intr(struct dwc_otg_softc *sc);
 
 
 #define DWC_OTG_READ_4(sc, reg) \
@@ -1905,7 +1906,7 @@ dwc_otg_suspend_irq(struct dwc_otg_softc *sc)
 		}
 
 		/* complete root HUB interrupt endpoint */
-		softint_schedule(sc->sc_rhc_si);
+		dwc_otg_root_intr(sc);
 	}
 }
 
@@ -1928,7 +1929,7 @@ dwc_otg_resume_irq(struct dwc_otg_softc *sc)
 		}
 
 		/* complete root HUB interrupt endpoint */
-		softint_schedule(sc->sc_rhc_si);
+		dwc_otg_root_intr(sc);
 	}
 }
 
@@ -2270,7 +2271,7 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 		if (!sc->sc_flags.status_vbus) {
 			sc->sc_flags.status_vbus = 1;
 			/* complete root HUB interrupt endpoint */
-			softint_schedule(sc->sc_rhc_si);
+			dwc_otg_root_intr(sc);
 		}
 	} else {
 		if (sc->sc_flags.status_vbus) {
@@ -2280,7 +2281,7 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 			sc->sc_flags.change_suspend = 0;
 			sc->sc_flags.change_connect = 1;
 			/* complete root HUB interrupt endpoint */
-			softint_schedule(sc->sc_rhc_si);
+			dwc_otg_root_intr(sc);
 		}
 	}
 }
@@ -2431,3 +2432,9 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 	return 0;
 }
 
+
+static inline void 
+dwc_otg_root_intr(struct dwc_otg_softc *sc)
+{
+	softint_schedule(sc->sc_rhc_si);
+}
