@@ -1757,32 +1757,6 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 
 /***********************************************************************/
 
-static void
-dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
-{
-	uint32_t temp;
-
-	DPRINTFN(5, ("addr=%d\n", addr));
-
-	temp = DWC_OTG_READ_4(sc, DOTG_DCFG);
-	temp &= ~DCFG_DEVADDR_SET(0x7F);
-	temp |= DCFG_DEVADDR_SET(addr);
-	DWC_OTG_WRITE_4(sc, DOTG_DCFG, temp);
-}
-
-static void
-dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
-{
-	DPRINTFN(5, ("RX status clear\n"));
-
-	/* enable RX FIFO level interrupt */
-	sc->sc_irq_mask |= GINTSTS_RXFLVL;
-	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
-
-	/* clear cached status */
-	sc->sc_last_rx_status = 0;
-}
-
 Static void
 dwc_otg_timer(void *_sc)
 {
@@ -2150,6 +2124,32 @@ dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
 
 	/* need to fake resume IRQ */
 	dwc_otg_resume_irq(sc);
+}
+
+static void
+dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
+{
+	uint32_t temp;
+
+	DPRINTFN(5, ("addr=%d\n", addr));
+
+	temp = DWC_OTG_READ_4(sc, DOTG_DCFG);
+	temp &= ~DCFG_DEVADDR_SET(0x7F);
+	temp |= DCFG_DEVADDR_SET(addr);
+	DWC_OTG_WRITE_4(sc, DOTG_DCFG, temp);
+}
+
+static void
+dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
+{
+	DPRINTFN(5, ("RX status clear\n"));
+
+	/* enable RX FIFO level interrupt */
+	sc->sc_irq_mask |= GINTSTS_RXFLVL;
+	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+
+	/* clear cached status */
+	sc->sc_last_rx_status = 0;
 }
 
 #if 0
