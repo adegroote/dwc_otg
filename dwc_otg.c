@@ -155,7 +155,7 @@ Static void		dwc_otg_pull_up(struct dwc_otg_softc *);
 Static void		dwc_otg_pull_down(struct dwc_otg_softc *);
 Static void 		dwc_otg_clocks_on(dwc_otg_softc_t*);
 Static void	 	dwc_otg_clocks_off(dwc_otg_softc_t*);
-Static void		dwc_otg_enable_sof_irq(struct dwc_otg_softc *sc)
+Static void		dwc_otg_enable_sof_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_timer(void*);
 Static void		dwc_otg_timer_start(struct dwc_otg_softc *);
 Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
