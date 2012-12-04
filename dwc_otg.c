@@ -183,13 +183,6 @@ static void dwc_otg_root_intr(struct dwc_otg_softc *sc);
 #define offonbits(sc, reg, off, on) \
   DWC_OTG_WRITE_4((sc),(reg),(DWC_OTG_READ_4((sc),(reg)) & ~(off)) | (on))
 
-#define dwc_otg_add_intr_list(sc, ex) \
-	TAILQ_INSERT_TAIL(&(sc)->sc_active, (ex), xnext);
-#define dwc_otg_del_intr_list(sc, ex) \
-	do { \
-		TAILQ_REMOVE(&sc->sc_active, (ex), xnext); \
-	} while (0)
-
 struct dwc_otg_pipe {
 	struct usbd_pipe pipe;		/* Must be first */
 
