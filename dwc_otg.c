@@ -147,33 +147,30 @@ Static void		dwc_otg_noop(usbd_pipe_handle pipe);
 Static void		dwc_otg_dump_global_regs(dwc_otg_softc_t *);
 Static void		dwc_otg_dump_host_regs(dwc_otg_softc_t *);
 #endif
+Static void		dwc_otg_rhc(void *);
 
 Static void		dwc_otg_timeout(void *);
 Static void		dwc_otg_timeout_task(void *);
 
-Static void		dwc_otg_pull_up(struct dwc_otg_softc *);
-Static void		dwc_otg_pull_down(struct dwc_otg_softc *);
+static int		dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
 Static void 		dwc_otg_clocks_on(dwc_otg_softc_t*);
 Static void	 	dwc_otg_clocks_off(dwc_otg_softc_t*);
+Static void		dwc_otg_pull_up(struct dwc_otg_softc *);
+Static void		dwc_otg_pull_down(struct dwc_otg_softc *);
 Static void		dwc_otg_enable_sof_irq(struct dwc_otg_softc *);
+Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
+Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
+Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
+
 Static void		dwc_otg_timer(void*);
 Static void		dwc_otg_timer_start(struct dwc_otg_softc *);
 Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
-Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
-Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
-Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
-Static void		dwc_otg_interrupt_poll(dwc_otg_softc_t *);
-Static void		dwc_otg_rhc(void *);
+
+Static void		dwc_otg_interrupt_poll(struct dwc_otg_softc *);
 
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *);
 
-Static void		dwc_otg_rem_ed(dwc_otg_softc_t*, dwc_otg_soft_ed_t* ,
-								dwc_otg_soft_ed_t* );
-Static dwc_otg_soft_ed_t* dwc_otg_alloc_sed(dwc_otg_softc_t*);
-Static void		dwc_otg_free_sed(dwc_otg_softc_t*, dwc_otg_soft_ed_t* );
-
-static int dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
-static void dwc_otg_root_intr(struct dwc_otg_softc *sc);
+static void		dwc_otg_root_intr(struct dwc_otg_softc *);
 
 
 #define DWC_OTG_READ_4(sc, reg) \
