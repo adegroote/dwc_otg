@@ -1420,156 +1420,6 @@ dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 
 /***********************************************************************/
 
-usbd_status
-dwc_otg_init(dwc_otg_softc_t *sc)
-{
-	uint32_t temp;
-	int i;
-
-	sc->sc_bus.hci_private = sc;
-	sc->sc_bus.usbrev = USBREV_2_0;
-	sc->sc_bus.methods = &dwc_otg_bus_methods;
-	sc->sc_bus.pipe_size = sizeof(struct dwc_otg_pipe);
-
-	/* XXXNH */
-	sc->sc_noport = 1;
-
-	callout_init(&sc->sc_timer, CALLOUT_MPSAFE);
-
-	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
-	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_SCHED);
-
-	TAILQ_INIT(&sc->sc_active);
-
-	sc->sc_rhc_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
-	    dwc_otg_rhc, sc);
-
-	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
-		USB_MEM_RESERVE);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GSNPSID);
-	DPRINTF(("Version = 0x%08x\n", temp));
-
-	/* disconnect */
-	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_SFTDISCON);
-	usb_delay_ms(&sc->sc_bus, 30);
-	DWC_OTG_WRITE_4(sc, DOTG_GRSTCTL, GRSTCTL_CSFTRST);
-	usb_delay_ms(&sc->sc_bus, 8);
-
-	sc->sc_mode = DWC_MODE_HOST;
-
-	switch (sc->sc_mode) {
-	case DWC_MODE_DEVICE:
-		temp = GUSBCFG_FORCEDEVMODE;
-		break;
-	case DWC_MODE_HOST:
-		temp = GUSBCFG_FORCEHOSTMODE;
-		break;
-	default:
-		temp = 0;
-		break;
-	}
-
-#ifdef DWC_OTG_USE_HSIC
-	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
-		GUSBCFG_PHYIF |
-		GUSBCFG_TRD_TIM_SET(5) | temp);
-	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0x000000ec);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
-	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
-	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp | GLPMCFG_HSIC_CONN);
-#else
-	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
-		GUSBCFG_ULPI_UTMI_SEL |
-		GUSBCFG_TRD_TIM_SET(5) | temp);
-	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
-	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
-#endif
-
-	/* clear global nak */
-	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_CGOUTNAK | DCTL_CGNPINNAK);
-
-	/* disable USB port */
-	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0xffffffff);
-	usb_delay_ms(&sc->sc_bus, 10);
-
-	/* enable USB port */
-	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0);
-	usb_delay_ms(&sc->sc_bus, 10);
-
-	/* pull up D+ */
-	dwc_otg_pull_up(sc);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG3);
-	sc->sc_fifo_size = 4 * GHWCFG3_DFIFODEPTH_GET(temp);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
-	sc->sc_dev_ep_max = min(GHWCFG2_NUMDEVEPS_GET(temp),DWC_OTG_MAX_ENDPOINTS);
-	sc->sc_host_ch_max = min(GHWCFG2_NUMHSTCHNL_GET(temp),DWC_OTG_MAX_CHANNELS);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG4);
-	sc->sc_dev_in_ep_max = GHWCFG4_NUM_IN_EP_GET(temp);
-
-	DPRINTF(("Total FIFO size = %d bytes, Device EPs = %d/%d Host CHs = %d\n",
-		sc->sc_fifo_size, sc->sc_dev_ep_max, sc->sc_dev_in_ep_max,
-		sc->sc_host_ch_max));
-
-	/* setup fifo */
-	if (dwc_otg_init_fifo(sc, DWC_MODE_OTG))
-		return EINVAL;
-
-	/* enable interrupts */
-	sc->sc_irq_mask = DWC_OTG_MSK_GINT_ENABLED;
-	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
-
-	switch (sc->sc_mode) {
-	case DWC_MODE_DEVICE:
-	case DWC_MODE_OTG:
-		/* enable endpoint interrupts */
-		temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
-		if (temp & GHWCFG2_MPI) {
-			for (i = 0; i < sc->sc_dev_in_ep_max; ++i) {
-				DWC_OTG_WRITE_4(sc, DOTG_DIEPEACHINTMSK(i),
-					DIEPMSK_XFERCOMPLMSK);
-				DWC_OTG_WRITE_4(sc, DOTG_DOEPEACHINTMSK(i), 0);
-			}
-			DWC_OTG_WRITE_4(sc, DOTG_DEACHINTMSK, 0xffff);
-		} else {
-			DWC_OTG_WRITE_4(sc, DOTG_DIEPMSK, DIEPMSK_XFERCOMPLMSK);
-			DWC_OTG_WRITE_4(sc, DOTG_DOEPMSK, 0);
-			DWC_OTG_WRITE_4(sc, DOTG_DAINTMSK, 0xffff);
-		}
-		break;
-	}
-
-	switch (sc->sc_mode) {
-	case DWC_MODE_HOST:
-	case DWC_MODE_OTG:
-		/* setup clocks */
-		offonbits(sc, DOTG_HCFG,
-			HCFG_FSLSSUPP | HCFG_FSLSPCLKSEL_MASK,
-			1 << HCFG_FSLSPCLKSEL_SHIFT);
-		break;
-	}
-
-	/* enable global IRQ */
-	DWC_OTG_WRITE_4(sc, DOTG_GAHBCFG, GAHBCFG_GLBLINTRMSK);
-
-	temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
-	DPRINTFN(5, ("GOTCTL=0x%08x\n", temp));
-
-	/* read initial VBUS state */
-	dwc_otg_vbus_interrupt(sc);
-
-	/* catch any lost interrupts */
-	dwc_otg_poll(&sc->sc_bus);
-
-	return 0;
-}
-
 int dwc_otg_intr(void *p)
 {
 	dwc_otg_softc_t *sc = p;
@@ -2559,3 +2409,155 @@ dwc_otg_interrupt(dwc_otg_softc_t *sc)
 
 	return 1;
 }
+
+
+usbd_status
+dwc_otg_init(dwc_otg_softc_t *sc)
+{
+	uint32_t temp;
+	int i;
+
+	sc->sc_bus.hci_private = sc;
+	sc->sc_bus.usbrev = USBREV_2_0;
+	sc->sc_bus.methods = &dwc_otg_bus_methods;
+	sc->sc_bus.pipe_size = sizeof(struct dwc_otg_pipe);
+
+	/* XXXNH */
+	sc->sc_noport = 1;
+
+	callout_init(&sc->sc_timer, CALLOUT_MPSAFE);
+
+	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
+	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_SCHED);
+
+	TAILQ_INIT(&sc->sc_active);
+
+	sc->sc_rhc_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
+	    dwc_otg_rhc, sc);
+
+	usb_setup_reserve(sc->sc_dev, &sc->sc_dma_reserve, sc->sc_bus.dmatag,
+		USB_MEM_RESERVE);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GSNPSID);
+	DPRINTF(("Version = 0x%08x\n", temp));
+
+	/* disconnect */
+	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_SFTDISCON);
+	usb_delay_ms(&sc->sc_bus, 30);
+	DWC_OTG_WRITE_4(sc, DOTG_GRSTCTL, GRSTCTL_CSFTRST);
+	usb_delay_ms(&sc->sc_bus, 8);
+
+	sc->sc_mode = DWC_MODE_HOST;
+
+	switch (sc->sc_mode) {
+	case DWC_MODE_DEVICE:
+		temp = GUSBCFG_FORCEDEVMODE;
+		break;
+	case DWC_MODE_HOST:
+		temp = GUSBCFG_FORCEHOSTMODE;
+		break;
+	default:
+		temp = 0;
+		break;
+	}
+
+#ifdef DWC_OTG_USE_HSIC
+	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
+		GUSBCFG_PHYIF |
+		GUSBCFG_TRD_TIM_SET(5) | temp);
+	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0x000000ec);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp | GLPMCFG_HSIC_CONN);
+#else
+	DWC_OTG_WRITE_4(sc, DOTG_GUSBCFG,
+		GUSBCFG_ULPI_UTMI_SEL |
+		GUSBCFG_TRD_TIM_SET(5) | temp);
+	DWC_OTG_WRITE_4(sc, DOTG_GOTGCTL, 0);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GLPMCFG);
+	DWC_OTG_WRITE_4(sc, DOTG_GLPMCFG, temp & ~GLPMCFG_HSIC_CONN);
+#endif
+
+	/* clear global nak */
+	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_CGOUTNAK | DCTL_CGNPINNAK);
+
+	/* disable USB port */
+	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0xffffffff);
+	usb_delay_ms(&sc->sc_bus, 10);
+
+	/* enable USB port */
+	DWC_OTG_WRITE_4(sc, DOTG_PCGCCTL, 0);
+	usb_delay_ms(&sc->sc_bus, 10);
+
+	/* pull up D+ */
+	dwc_otg_pull_up(sc);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG3);
+	sc->sc_fifo_size = 4 * GHWCFG3_DFIFODEPTH_GET(temp);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
+	sc->sc_dev_ep_max = min(GHWCFG2_NUMDEVEPS_GET(temp),DWC_OTG_MAX_ENDPOINTS);
+	sc->sc_host_ch_max = min(GHWCFG2_NUMHSTCHNL_GET(temp),DWC_OTG_MAX_CHANNELS);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG4);
+	sc->sc_dev_in_ep_max = GHWCFG4_NUM_IN_EP_GET(temp);
+
+	DPRINTF(("Total FIFO size = %d bytes, Device EPs = %d/%d Host CHs = %d\n",
+		sc->sc_fifo_size, sc->sc_dev_ep_max, sc->sc_dev_in_ep_max,
+		sc->sc_host_ch_max));
+
+	/* setup fifo */
+	if (dwc_otg_init_fifo(sc, DWC_MODE_OTG))
+		return EINVAL;
+
+	/* enable interrupts */
+	sc->sc_irq_mask = DWC_OTG_MSK_GINT_ENABLED;
+	DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+
+	switch (sc->sc_mode) {
+	case DWC_MODE_DEVICE:
+	case DWC_MODE_OTG:
+		/* enable endpoint interrupts */
+		temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG2);
+		if (temp & GHWCFG2_MPI) {
+			for (i = 0; i < sc->sc_dev_in_ep_max; ++i) {
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPEACHINTMSK(i),
+					DIEPMSK_XFERCOMPLMSK);
+				DWC_OTG_WRITE_4(sc, DOTG_DOEPEACHINTMSK(i), 0);
+			}
+			DWC_OTG_WRITE_4(sc, DOTG_DEACHINTMSK, 0xffff);
+		} else {
+			DWC_OTG_WRITE_4(sc, DOTG_DIEPMSK, DIEPMSK_XFERCOMPLMSK);
+			DWC_OTG_WRITE_4(sc, DOTG_DOEPMSK, 0);
+			DWC_OTG_WRITE_4(sc, DOTG_DAINTMSK, 0xffff);
+		}
+		break;
+	}
+
+	switch (sc->sc_mode) {
+	case DWC_MODE_HOST:
+	case DWC_MODE_OTG:
+		/* setup clocks */
+		offonbits(sc, DOTG_HCFG,
+			HCFG_FSLSSUPP | HCFG_FSLSPCLKSEL_MASK,
+			1 << HCFG_FSLSPCLKSEL_SHIFT);
+		break;
+	}
+
+	/* enable global IRQ */
+	DWC_OTG_WRITE_4(sc, DOTG_GAHBCFG, GAHBCFG_GLBLINTRMSK);
+
+	temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
+	DPRINTFN(5, ("GOTCTL=0x%08x\n", temp));
+
+	/* read initial VBUS state */
+	dwc_otg_vbus_interrupt(sc);
+
+	/* catch any lost interrupts */
+	dwc_otg_poll(&sc->sc_bus);
+
+	return 0;
+}
+
