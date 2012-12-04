@@ -1580,11 +1580,6 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 
 /***********************************************************************/
 
-
-
-
-
-
 static int
 dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 {
