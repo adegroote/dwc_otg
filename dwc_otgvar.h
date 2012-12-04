@@ -136,10 +136,14 @@ typedef struct dwc_otg_soft_td {
 } dwc_otg_soft_td_t;
 
 struct dwc_otg_xfer {
-	struct usbd_xfer xfer;
+	struct usbd_xfer xfer;			/* Needs to be first */
 	struct usb_task	abort_task;
-	TAILQ_ENTRY(dwc_otg_xfer) inext; /* list of active xfers */
-	dwc_otg_soft_td_t *td;
+	TAILQ_ENTRY(dwc_otg_xfer) xnext;	/* list of active/complete xfers */
+
+	void		*td_start[1];
+	dwc_otg_td_t	*td_transfer_first;
+	dwc_otg_td_t	*td_transfer_last;
+	dwc_otg_td_t	*td_transfer_cache;
 };
 
 struct dwc_otg_chan_state {
@@ -160,6 +164,7 @@ typedef struct dwc_otg_softc {
 	kmutex_t sc_intr_lock;
 
 	void *sc_rhc_si;
+	void *sc_dvd_si;
 
 	int sc_noport;
 
@@ -172,7 +177,8 @@ typedef struct dwc_otg_softc {
 	char sc_vendor[32];		/* vendor string for root hub */
 	int sc_id_vendor;		/* vendor ID for root hub */
 
-	TAILQ_HEAD(, dwc_otg_xfer) sc_intrhead;
+	TAILQ_HEAD(, dwc_otg_xfer) sc_active;	/* active transfers */
+	TAILQ_HEAD(, dwc_otg_xfer) sc_complete;	/* complete transfers */
 
 	/* From FreeBSD softc */
 	struct callout sc_timer;

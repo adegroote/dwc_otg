@@ -184,10 +184,10 @@ static void dwc_otg_root_intr(struct dwc_otg_softc *sc);
   DWC_OTG_WRITE_4((sc),(reg),(DWC_OTG_READ_4((sc),(reg)) & ~(off)) | (on))
 
 #define dwc_otg_add_intr_list(sc, ex) \
-	TAILQ_INSERT_TAIL(&(sc)->sc_intrhead, (ex), inext);
+	TAILQ_INSERT_TAIL(&(sc)->sc_active, (ex), xnext);
 #define dwc_otg_del_intr_list(sc, ex) \
 	do { \
-		TAILQ_REMOVE(&sc->sc_intrhead, (ex), inext); \
+		TAILQ_REMOVE(&sc->sc_active, (ex), xnext); \
 	} while (0)
 
 struct dwc_otg_pipe {
@@ -376,23 +376,6 @@ dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
 	DPRINTF(("%s\n", __func__));
 
 	sc = sc;
-}
-
-usbd_status
-dwc_otg_device_request(usbd_xfer_handle xfer)
-{
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	usb_device_request_t *req = &xfer->request;
-	usbd_device_handle dev = dpipe->pipe.device;
-	dwc_otg_softc_t *sc = dev->bus->hci_private;
-	usbd_status err = 0;
-
-	DPRINTF(("%s\n", __func__));
-
-	req = req;
-	sc = sc;
-
-	return err;
 }
 
 Static void
@@ -1466,7 +1449,7 @@ dwc_otg_init(dwc_otg_softc_t *sc)
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
 	mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, IPL_SCHED);
 
-	TAILQ_INIT(&sc->sc_intrhead);
+	TAILQ_INIT(&sc->sc_active);
 
 	sc->sc_rhc_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
 	    dwc_otg_rhc, sc);
@@ -1762,7 +1745,7 @@ dwc_otg_timer(void *_sc)
 {
 	struct dwc_otg_softc *sc = _sc;
 	struct dwc_otg_xfer *xfer;
-	struct dwc_otg_soft_td *td;
+	struct dwc_otg_td *td;
 
 	/* XXX locking
 	   KASSERT(mutex_owned(&sc->sc_lock));
@@ -1772,10 +1755,10 @@ dwc_otg_timer(void *_sc)
 	/* increment timer value */
 	sc->sc_tmr_val++;
 
-	TAILQ_FOREACH(xfer, &sc->sc_intrhead, inext) {
-		td = xfer->td;
-		if (td != NULL && td->td != NULL)
-			td->td->did_nak = 0;
+	TAILQ_FOREACH(xfer, &sc->sc_active, xnext) {
+		td = xfer->td_transfer_cache;
+		if (td != NULL)
+			td->did_nak = 0;
 	}
 
 	/* poll jobs */
