@@ -167,8 +167,6 @@ Static void		dwc_otg_interrupt_poll(struct dwc_otg_softc *);
 Static void		dwc_otg_rhc(void *);
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *);
 
-static void		dwc_otg_root_intr(struct dwc_otg_softc *);
-
 #define DWC_OTG_READ_4(sc, reg) \
   bus_space_read_4((sc)->sc_iot, (sc)->sc_ioh, reg)
 #define DWC_OTG_WRITE_4(sc, reg, data)  \
