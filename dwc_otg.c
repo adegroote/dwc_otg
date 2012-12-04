@@ -88,7 +88,6 @@ struct dwc_otg_pipe;
 Static usbd_status	dwc_otg_open(usbd_pipe_handle);
 Static void		dwc_otg_poll(struct usbd_bus *);
 Static void		dwc_otg_softintr(void *);
-Static int		dwc_otg_intr1(dwc_otg_softc_t *);
 Static void		dwc_otg_waitintr(dwc_otg_softc_t *, usbd_xfer_handle);
 
 Static usbd_status	dwc_otg_allocm(struct usbd_bus *, usb_dma_t *, uint32_t);
@@ -147,7 +146,6 @@ Static void		dwc_otg_noop(usbd_pipe_handle pipe);
 Static void		dwc_otg_dump_global_regs(dwc_otg_softc_t *);
 Static void		dwc_otg_dump_host_regs(dwc_otg_softc_t *);
 #endif
-Static void		dwc_otg_rhc(void *);
 
 Static void		dwc_otg_timeout(void *);
 Static void		dwc_otg_timeout_task(void *);
@@ -161,17 +159,15 @@ Static void		dwc_otg_enable_sof_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
-
+Static int		dwc_otg_interrupt(dwc_otg_softc_t *);
 Static void		dwc_otg_timer(void*);
 Static void		dwc_otg_timer_start(struct dwc_otg_softc *);
 Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
-
 Static void		dwc_otg_interrupt_poll(struct dwc_otg_softc *);
-
+Static void		dwc_otg_rhc(void *);
 Static void		dwc_otg_vbus_interrupt(struct dwc_otg_softc *);
 
 static void		dwc_otg_root_intr(struct dwc_otg_softc *);
-
 
 #define DWC_OTG_READ_4(sc, reg) \
   bus_space_read_4((sc)->sc_iot, (sc)->sc_ioh, reg)
@@ -179,6 +175,12 @@ static void		dwc_otg_root_intr(struct dwc_otg_softc *);
   bus_space_write_4((sc)->sc_iot, (sc)->sc_ioh, reg, data)
 #define offonbits(sc, reg, off, on) \
   DWC_OTG_WRITE_4((sc),(reg),(DWC_OTG_READ_4((sc),(reg)) & ~(off)) | (on))
+
+static inline void
+dwc_otg_root_intr(struct dwc_otg_softc *sc)
+{
+	softint_schedule(sc->sc_rhc_si);
+}
 
 struct dwc_otg_pipe {
 	struct usbd_pipe pipe;		/* Must be first */
@@ -539,7 +541,7 @@ dwc_otg_poll(struct usbd_bus *bus)
 	dwc_otg_softc_t *sc = bus->hci_private;
 
 	mutex_spin_enter(&sc->sc_intr_lock);
-	dwc_otg_intr1(sc);
+	dwc_otg_interrupt(sc);
 	mutex_spin_exit(&sc->sc_intr_lock);
 }
 
@@ -1587,7 +1589,7 @@ int dwc_otg_intr(void *p)
 		uint32_t status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
 		DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
 	} else {
-		ret = dwc_otg_intr1(sc);
+		ret = dwc_otg_interrupt(sc);
 	}
 
 done:
@@ -1730,63 +1732,7 @@ dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
 
 /***********************************************************************/
 
-Static void
-dwc_otg_timer(void *_sc)
-{
-	struct dwc_otg_softc *sc = _sc;
-	struct dwc_otg_xfer *xfer;
-	struct dwc_otg_td *td;
 
-	/* XXX locking
-	   KASSERT(mutex_owned(&sc->sc_lock));
-	   DPRINTF(("\n"));
-	*/
-
-	/* increment timer value */
-	sc->sc_tmr_val++;
-
-	TAILQ_FOREACH(xfer, &sc->sc_active, xnext) {
-		td = xfer->td_transfer_cache;
-		if (td != NULL)
-			td->did_nak = 0;
-	}
-
-	/* poll jobs */
-	dwc_otg_interrupt_poll(sc);
-
-	if (sc->sc_timer_active) {
-		/* restart timer */
-		callout_reset(&sc->sc_timer,
-		    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
-		    &dwc_otg_timer, sc);
-	}
-}
-
-Static void
-dwc_otg_timer_start(struct dwc_otg_softc *sc)
-{
-	if (sc->sc_timer_active != 0)
-		return;
-
-	sc->sc_timer_active = 1;
-
-	/* restart timer */
-	callout_reset(&sc->sc_timer,
-	    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
-	    &dwc_otg_timer, sc);
-}
-
-Static void
-dwc_otg_timer_stop(struct dwc_otg_softc *sc)
-{
-	if (sc->sc_timer_active == 0)
-		return;
-
-	sc->sc_timer_active = 0;
-
-	/* stop timer */
-	callout_stop(&sc->sc_timer);
-}
 
 
 
@@ -2193,204 +2139,62 @@ dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
 
 /***********************************************************************/
 
-
-int
-dwc_otg_intr1(dwc_otg_softc_t *sc)
+Static void
+dwc_otg_timer(void *_sc)
 {
-	uint32_t status;
+	struct dwc_otg_softc *sc = _sc;
+	struct dwc_otg_xfer *xfer;
+	struct dwc_otg_td *td;
 
-	status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
-	DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
+	/* XXX locking
+	   KASSERT(mutex_owned(&sc->sc_lock));
+	   DPRINTF(("\n"));
+	*/
 
-	DPRINTFN(14, ("GINTSTS=0x%08x HAINT=0x%08x HFNUM=0x%08x\n",
-	    status, DWC_OTG_READ_4(sc, DOTG_HAINT),
-	    DWC_OTG_READ_4(sc, DOTG_HFNUM)));
+	/* increment timer value */
+	sc->sc_tmr_val++;
 
-	if (status & GINTSTS_USBRST) {
-		/* set correct state */
-		sc->sc_flags.status_device_mode = 1;
-		sc->sc_flags.status_bus_reset = 0;
-		sc->sc_flags.status_suspend = 0;
-		sc->sc_flags.change_suspend = 0;
-		sc->sc_flags.change_connect = 1;
-
-		/* complete root HUB interrupt endpoint */
-		dwc_otg_root_intr(sc);
+	TAILQ_FOREACH(xfer, &sc->sc_active, xnext) {
+		td = xfer->td_transfer_cache;
+		if (td != NULL)
+			td->did_nak = 0;
 	}
 
-	/* check for any bus state change interrupts */
-	if (status & GINTSTS_ENUMDONE) {
-		uint32_t temp;
-
-		DPRINTFN(5, ("end of reset\n"));
-
-		/* set correct state */
-		sc->sc_flags.status_device_mode = 1;
-		sc->sc_flags.status_bus_reset = 1;
-		sc->sc_flags.status_suspend = 0;
-		sc->sc_flags.change_suspend = 0;
-		sc->sc_flags.change_connect = 1;
-		sc->sc_flags.status_low_speed = 0;
-		sc->sc_flags.port_enabled = 1;
-
-		/* reset FIFOs */
-		dwc_otg_init_fifo(sc, DWC_MODE_DEVICE);
-
-		/* reset function address */
-		dwc_otg_set_address(sc, 0);
-
-		/* figure out enumeration speed */
-		temp = DWC_OTG_READ_4(sc, DOTG_DSTS);
-		if (DSTS_ENUMSPD_GET(temp) == DSTS_ENUMSPD_HI)
-			sc->sc_flags.status_high_speed = 1;
-		else
-			sc->sc_flags.status_high_speed = 0;
-
-		/* disable resume interrupt and enable suspend interrupt */
-		
-		sc->sc_irq_mask &= ~GINTSTS_WKUPINT;
-		sc->sc_irq_mask |= GINTSTS_USBSUSP;
-		DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
-
-		/* complete root HUB interrupt endpoint */
-		dwc_otg_root_intr(sc);
-	}
-
-	if (status & GINTSTS_PRTINT) {
-		uint32_t hprt;
-
-		hprt = DWC_OTG_READ_4(sc, DOTG_HPRT);
-
-		/* clear change bits */
-		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (hprt & (
-		    HPRT_PRTPWR | HPRT_PRTENCHNG |
-		    HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
-		    sc->sc_hprt_val);
-
-		DPRINTFN(12, ("GINTSTS=0x%08x, HPRT=0x%08x\n", status, hprt));
-
-		sc->sc_flags.status_device_mode = 0;
-
-		if (hprt & HPRT_PRTCONNSTS)
-			sc->sc_flags.status_bus_reset = 1;
-		else
-			sc->sc_flags.status_bus_reset = 0;
-
-		if (hprt & HPRT_PRTENCHNG)
-			sc->sc_flags.change_enabled = 1;
-
-		if (hprt & HPRT_PRTENA)
-			sc->sc_flags.port_enabled = 1;
-		else
-			sc->sc_flags.port_enabled = 0;
-
-		if (hprt & HPRT_PRTOVRCURRCHNG)
-			sc->sc_flags.change_over_current = 1;
-
-		if (hprt & HPRT_PRTOVRCURRACT)
-			sc->sc_flags.port_over_current = 1;
-		else
-			sc->sc_flags.port_over_current = 0;
-
-		if (hprt & HPRT_PRTPWR)
-			sc->sc_flags.port_powered = 1;
-		else
-			sc->sc_flags.port_powered = 0;
-
-		if (((hprt & HPRT_PRTSPD_MASK)
-		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_LOW)
-			sc->sc_flags.status_low_speed = 1;
-		else
-			sc->sc_flags.status_low_speed = 0;
-
-		if (((hprt & HPRT_PRTSPD_MASK)
-		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_HIGH)
-			sc->sc_flags.status_high_speed = 1;
-		else
-			sc->sc_flags.status_high_speed = 0;
-
-		if (hprt & HPRT_PRTCONNDET)
-			sc->sc_flags.change_connect = 1;
-
-		if (hprt & HPRT_PRTSUSP)
-			dwc_otg_suspend_irq(sc);
-		else
-			dwc_otg_resume_irq(sc);
-
-		/* complete root HUB interrupt endpoint */
-		dwc_otg_root_intr(sc);
-	}
-
-	/*
-	 * If resume and suspend is set at the same time we interpret
-	 * that like RESUME. Resume is set when there is at least 3
-	 * milliseconds of inactivity on the USB BUS.
-	 */
-	if (status & GINTSTS_WKUPINT) {
-
-		DPRINTFN(5, ("resume interrupt\n"));
-
-		dwc_otg_resume_irq(sc);
-
-	} else if (status & GINTSTS_USBSUSP) {
-
-		DPRINTFN(5, ("suspend interrupt\n"));
-
-		dwc_otg_suspend_irq(sc);
-	}
-	/* check VBUS */
-	if (status & (GINTSTS_USBSUSP |
-	    GINTSTS_USBRST |
-	    GINTMSK_OTGINTMSK |
-	    GINTSTS_SESSREQINT)) {
-		uint32_t temp;
-
-		temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
-
-		DPRINTFN(5, ("GOTGCTL=0x%08x\n", temp));
-
-		dwc_otg_vbus_interrupt(sc);
-	}
-
-	/* clear all IN endpoint interrupts */
-	if (status & GINTSTS_IEPINT) {
-		uint32_t temp;
-		uint8_t x;
-
-		for (x = 0; x != sc->sc_dev_in_ep_max; x++) {
-			temp = DWC_OTG_READ_4(sc, DOTG_DIEPINT(x));
-			if (temp & DIEPMSK_XFERCOMPLMSK) {
-				DWC_OTG_WRITE_4(sc, DOTG_DIEPINT(x),
-				    DIEPMSK_XFERCOMPLMSK);
-			}
-		}
-	}
-
-	/* check for SOF interrupt */
-	if (status & GINTSTS_SOF) {
-		if (sc->sc_irq_mask & GINTMSK_SOFMSK) {
-			uint8_t x;
-			uint8_t y;
-
-			DPRINTFN(12, ("SOF interrupt\n"));
-
-			for (x = y = 0; x != sc->sc_host_ch_max; x++) {
-				if (sc->sc_chan_state[x].wait_sof != 0) {
-					if (--(sc->sc_chan_state[x].wait_sof) != 0)
-						y = 1;
-				}
-			}
-			if (y == 0) {
-				sc->sc_irq_mask &= ~GINTMSK_SOFMSK; 
-				DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
-			}
-		}
-	}
-
-	/* poll FIFO(s) */
+	/* poll jobs */
 	dwc_otg_interrupt_poll(sc);
 
-	return 1;
+	if (sc->sc_timer_active) {
+		/* restart timer */
+		callout_reset(&sc->sc_timer,
+		    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+		    &dwc_otg_timer, sc);
+	}
+}
+
+Static void
+dwc_otg_timer_start(struct dwc_otg_softc *sc)
+{
+	if (sc->sc_timer_active != 0)
+		return;
+
+	sc->sc_timer_active = 1;
+
+	/* restart timer */
+	callout_reset(&sc->sc_timer,
+	    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+	    &dwc_otg_timer, sc);
+}
+
+Static void
+dwc_otg_timer_stop(struct dwc_otg_softc *sc)
+{
+	if (sc->sc_timer_active == 0)
+		return;
+
+	sc->sc_timer_active = 0;
+
+	/* stop timer */
+	callout_stop(&sc->sc_timer);
 }
 
 Static void
@@ -2559,9 +2363,201 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 }
 
 
-
-static inline void 
-dwc_otg_root_intr(struct dwc_otg_softc *sc)
+int
+dwc_otg_interrupt(dwc_otg_softc_t *sc)
 {
-	softint_schedule(sc->sc_rhc_si);
+	uint32_t status;
+
+	status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
+	DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
+
+	DPRINTFN(14, ("GINTSTS=0x%08x HAINT=0x%08x HFNUM=0x%08x\n",
+	    status, DWC_OTG_READ_4(sc, DOTG_HAINT),
+	    DWC_OTG_READ_4(sc, DOTG_HFNUM)));
+
+	if (status & GINTSTS_USBRST) {
+		/* set correct state */
+		sc->sc_flags.status_device_mode = 1;
+		sc->sc_flags.status_bus_reset = 0;
+		sc->sc_flags.status_suspend = 0;
+		sc->sc_flags.change_suspend = 0;
+		sc->sc_flags.change_connect = 1;
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
+	}
+
+	/* check for any bus state change interrupts */
+	if (status & GINTSTS_ENUMDONE) {
+		uint32_t temp;
+
+		DPRINTFN(5, ("end of reset\n"));
+
+		/* set correct state */
+		sc->sc_flags.status_device_mode = 1;
+		sc->sc_flags.status_bus_reset = 1;
+		sc->sc_flags.status_suspend = 0;
+		sc->sc_flags.change_suspend = 0;
+		sc->sc_flags.change_connect = 1;
+		sc->sc_flags.status_low_speed = 0;
+		sc->sc_flags.port_enabled = 1;
+
+		/* reset FIFOs */
+		dwc_otg_init_fifo(sc, DWC_MODE_DEVICE);
+
+		/* reset function address */
+		dwc_otg_set_address(sc, 0);
+
+		/* figure out enumeration speed */
+		temp = DWC_OTG_READ_4(sc, DOTG_DSTS);
+		if (DSTS_ENUMSPD_GET(temp) == DSTS_ENUMSPD_HI)
+			sc->sc_flags.status_high_speed = 1;
+		else
+			sc->sc_flags.status_high_speed = 0;
+
+		/* disable resume interrupt and enable suspend interrupt */
+
+		sc->sc_irq_mask &= ~GINTSTS_WKUPINT;
+		sc->sc_irq_mask |= GINTSTS_USBSUSP;
+		DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
+	}
+
+	if (status & GINTSTS_PRTINT) {
+		uint32_t hprt;
+
+		hprt = DWC_OTG_READ_4(sc, DOTG_HPRT);
+
+		/* clear change bits */
+		DWC_OTG_WRITE_4(sc, DOTG_HPRT, (hprt & (
+		    HPRT_PRTPWR | HPRT_PRTENCHNG |
+		    HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
+		    sc->sc_hprt_val);
+
+		DPRINTFN(12, ("GINTSTS=0x%08x, HPRT=0x%08x\n", status, hprt));
+
+		sc->sc_flags.status_device_mode = 0;
+
+		if (hprt & HPRT_PRTCONNSTS)
+			sc->sc_flags.status_bus_reset = 1;
+		else
+			sc->sc_flags.status_bus_reset = 0;
+
+		if (hprt & HPRT_PRTENCHNG)
+			sc->sc_flags.change_enabled = 1;
+
+		if (hprt & HPRT_PRTENA)
+			sc->sc_flags.port_enabled = 1;
+		else
+			sc->sc_flags.port_enabled = 0;
+
+		if (hprt & HPRT_PRTOVRCURRCHNG)
+			sc->sc_flags.change_over_current = 1;
+
+		if (hprt & HPRT_PRTOVRCURRACT)
+			sc->sc_flags.port_over_current = 1;
+		else
+			sc->sc_flags.port_over_current = 0;
+
+		if (hprt & HPRT_PRTPWR)
+			sc->sc_flags.port_powered = 1;
+		else
+			sc->sc_flags.port_powered = 0;
+
+		if (((hprt & HPRT_PRTSPD_MASK)
+		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_LOW)
+			sc->sc_flags.status_low_speed = 1;
+		else
+			sc->sc_flags.status_low_speed = 0;
+
+		if (((hprt & HPRT_PRTSPD_MASK)
+		    >> HPRT_PRTSPD_SHIFT) == HPRT_PRTSPD_HIGH)
+			sc->sc_flags.status_high_speed = 1;
+		else
+			sc->sc_flags.status_high_speed = 0;
+
+		if (hprt & HPRT_PRTCONNDET)
+			sc->sc_flags.change_connect = 1;
+
+		if (hprt & HPRT_PRTSUSP)
+			dwc_otg_suspend_irq(sc);
+		else
+			dwc_otg_resume_irq(sc);
+
+		/* complete root HUB interrupt endpoint */
+		dwc_otg_root_intr(sc);
+	}
+
+	/*
+	 * If resume and suspend is set at the same time we interpret
+	 * that like RESUME. Resume is set when there is at least 3
+	 * milliseconds of inactivity on the USB BUS.
+	 */
+	if (status & GINTSTS_WKUPINT) {
+
+		DPRINTFN(5, ("resume interrupt\n"));
+
+		dwc_otg_resume_irq(sc);
+
+	} else if (status & GINTSTS_USBSUSP) {
+
+		DPRINTFN(5, ("suspend interrupt\n"));
+
+		dwc_otg_suspend_irq(sc);
+	}
+	/* check VBUS */
+	if (status & (GINTSTS_USBSUSP |
+	    GINTSTS_USBRST |
+	    GINTMSK_OTGINTMSK |
+	    GINTSTS_SESSREQINT)) {
+		uint32_t temp;
+
+		temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
+
+		DPRINTFN(5, ("GOTGCTL=0x%08x\n", temp));
+
+		dwc_otg_vbus_interrupt(sc);
+	}
+
+	/* clear all IN endpoint interrupts */
+	if (status & GINTSTS_IEPINT) {
+		uint32_t temp;
+		uint8_t x;
+
+		for (x = 0; x != sc->sc_dev_in_ep_max; x++) {
+			temp = DWC_OTG_READ_4(sc, DOTG_DIEPINT(x));
+			if (temp & DIEPMSK_XFERCOMPLMSK) {
+				DWC_OTG_WRITE_4(sc, DOTG_DIEPINT(x),
+				    DIEPMSK_XFERCOMPLMSK);
+			}
+		}
+	}
+
+	/* check for SOF interrupt */
+	if (status & GINTSTS_SOF) {
+		if (sc->sc_irq_mask & GINTMSK_SOFMSK) {
+			uint8_t x;
+			uint8_t y;
+
+			DPRINTFN(12, ("SOF interrupt\n"));
+
+			for (x = y = 0; x != sc->sc_host_ch_max; x++) {
+				if (sc->sc_chan_state[x].wait_sof != 0) {
+					if (--(sc->sc_chan_state[x].wait_sof) != 0)
+						y = 1;
+				}
+			}
+			if (y == 0) {
+				sc->sc_irq_mask &= ~GINTMSK_SOFMSK;
+				DWC_OTG_WRITE_4(sc, DOTG_GINTMSK, sc->sc_irq_mask);
+			}
+		}
+	}
+
+	/* poll FIFO(s) */
+	dwc_otg_interrupt_poll(sc);
+
+	return 1;
 }
