@@ -91,7 +91,7 @@ Static void		dwc_otg_softintr(void *);
 Static int		dwc_otg_intr1(dwc_otg_softc_t *);
 Static void		dwc_otg_waitintr(dwc_otg_softc_t *, usbd_xfer_handle);
 
-Static usbd_status	dwc_otg_allocm(struct usbd_bus *, usb_dma_t *, u_int32_t);
+Static usbd_status	dwc_otg_allocm(struct usbd_bus *, usb_dma_t *, uint32_t);
 Static void		dwc_otg_freem(struct usbd_bus *, usb_dma_t *);
 
 Static usbd_xfer_handle	dwc_otg_allocx(struct usbd_bus *);
@@ -267,7 +267,7 @@ Static const struct usbd_pipe_methods dwc_otg_device_isoc_methods = {
 };
 
 Static usbd_status
-dwc_otg_allocm(struct usbd_bus *bus, usb_dma_t *dma, u_int32_t size)
+dwc_otg_allocm(struct usbd_bus *bus, usb_dma_t *dma, uint32_t size)
 {
 	struct dwc_otg_softc *sc = bus->hci_private;
 	usbd_status status;
