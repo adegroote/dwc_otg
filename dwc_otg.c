@@ -371,22 +371,22 @@ dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
 Static void
 dwc_otg_timeout(void *addr)
 {
-	struct dwc_otg_xfer *oxfer = addr;
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)oxfer->xfer.pipe;
+	struct dwc_otg_xfer *dxfer = addr;
+	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)dxfer->xfer.pipe;
 	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
 
-	DPRINTF(("%s: oxfer=%p\n", __func__, oxfer));
+	DPRINTF(("%s: dxfer=%p\n", __func__, dxfer));
 
 	if (sc->sc_dying) {
 		mutex_enter(&sc->sc_lock);
-		dwc_otg_abort_xfer(&oxfer->xfer, USBD_TIMEOUT);
+		dwc_otg_abort_xfer(&dxfer->xfer, USBD_TIMEOUT);
 		mutex_exit(&sc->sc_lock);
 		return;
 	}
 
 	/* Execute the abort in a process context. */
-	usb_init_task(&oxfer->abort_task, dwc_otg_timeout_task, addr);
-	usb_add_task(oxfer->xfer.pipe->device, &oxfer->abort_task,
+	usb_init_task(&dxfer->abort_task, dwc_otg_timeout_task, addr);
+	usb_add_task(dxfer->xfer.pipe->device, &dxfer->abort_task,
 	    USB_TASKQ_HC);
 }
 
