@@ -88,7 +88,7 @@ struct dwc_otg_pipe;
 Static usbd_status	dwc_otg_open(usbd_pipe_handle);
 Static void		dwc_otg_poll(struct usbd_bus *);
 Static void		dwc_otg_softintr(void *);
-Static void		dwc_otg_waitintr(dwc_otg_softc_t *, usbd_xfer_handle);
+Static void		dwc_otg_waitintr(struct dwc_otg_softc *, usbd_xfer_handle);
 
 Static usbd_status	dwc_otg_allocm(struct usbd_bus *, usb_dma_t *, uint32_t);
 Static void		dwc_otg_freem(struct usbd_bus *, usb_dma_t *);
@@ -143,23 +143,23 @@ Static void		dwc_otg_device_clear_toggle(usbd_pipe_handle pipe);
 Static void		dwc_otg_noop(usbd_pipe_handle pipe);
 
 #ifdef DWC_OTG_DEBUG
-Static void		dwc_otg_dump_global_regs(dwc_otg_softc_t *);
-Static void		dwc_otg_dump_host_regs(dwc_otg_softc_t *);
+Static void		dwc_otg_dump_global_regs(struct dwc_otg_softc *);
+Static void		dwc_otg_dump_host_regs(struct dwc_otg_softc *);
 #endif
 
 Static void		dwc_otg_timeout(void *);
 Static void		dwc_otg_timeout_task(void *);
 
 static int		dwc_otg_init_fifo(struct dwc_otg_softc *, uint8_t);
-Static void 		dwc_otg_clocks_on(dwc_otg_softc_t*);
-Static void	 	dwc_otg_clocks_off(dwc_otg_softc_t*);
+Static void 		dwc_otg_clocks_on(struct dwc_otg_softc*);
+Static void	 	dwc_otg_clocks_off(struct dwc_otg_softc*);
 Static void		dwc_otg_pull_up(struct dwc_otg_softc *);
 Static void		dwc_otg_pull_down(struct dwc_otg_softc *);
 Static void		dwc_otg_enable_sof_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_resume_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_suspend_irq(struct dwc_otg_softc *);
 Static void		dwc_otg_wakeup_peer(struct dwc_otg_softc *);
-Static int		dwc_otg_interrupt(dwc_otg_softc_t *);
+Static int		dwc_otg_interrupt(struct dwc_otg_softc *);
 Static void		dwc_otg_timer(void*);
 Static void		dwc_otg_timer_start(struct dwc_otg_softc *);
 Static void		dwc_otg_timer_stop(struct dwc_otg_softc *);
@@ -323,7 +323,7 @@ Static void
 dwc_otg_softintr(void *v)
 {
 	struct usbd_bus *bus = v;
-	dwc_otg_softc_t *sc = bus->hci_private;
+	struct dwc_otg_softc *sc = bus->hci_private;
 
 	KASSERT(sc->sc_bus.use_polling || mutex_owned(&sc->sc_lock));
 
@@ -333,7 +333,7 @@ dwc_otg_softintr(void *v)
 }
 
 Static void
-dwc_otg_waitintr(dwc_otg_softc_t *sc, usbd_xfer_handle xfer)
+dwc_otg_waitintr(struct dwc_otg_softc *sc, usbd_xfer_handle xfer)
 {
 }
 
@@ -351,7 +351,7 @@ Static void
 dwc_otg_device_intr_done(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -361,7 +361,7 @@ dwc_otg_device_intr_done(usbd_xfer_handle xfer)
 Static void
 dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -373,7 +373,7 @@ dwc_otg_timeout(void *addr)
 {
 	struct dwc_otg_xfer *dxfer = addr;
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)dxfer->xfer.pipe;
-	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	DPRINTF(("%s: dxfer=%p\n", __func__, dxfer));
 
@@ -394,7 +394,7 @@ Static void
 dwc_otg_timeout_task(void *addr)
 {
 	usbd_xfer_handle xfer = addr;
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	DPRINTF(("%s: xfer=%p\n", __func__, xfer));
 
@@ -407,7 +407,7 @@ usbd_status
 dwc_otg_open(usbd_pipe_handle pipe)
 {
 	usbd_device_handle dev = pipe->device;
-	dwc_otg_softc_t *sc = dev->bus->hci_private;
+	struct dwc_otg_softc *sc = dev->bus->hci_private;
 	usb_endpoint_descriptor_t *ed = pipe->endpoint->edesc;
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
 	uint8_t addr = dev->address;
@@ -536,7 +536,7 @@ fail:
 Static void
 dwc_otg_poll(struct usbd_bus *bus)
 {
-	dwc_otg_softc_t *sc = bus->hci_private;
+	struct dwc_otg_softc *sc = bus->hci_private;
 
 	mutex_spin_enter(&sc->sc_intr_lock);
 	dwc_otg_interrupt(sc);
@@ -551,7 +551,7 @@ Static void
 dwc_otg_close_pipe(usbd_pipe_handle pipe, dwc_otg_soft_ed_t *head)
 {
 	//struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	usb_delay_ms(&sc->sc_bus, 1);
 }
@@ -564,7 +564,7 @@ Static void
 dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 
 	DPRINTF(("%s\n", __func__));
@@ -685,7 +685,7 @@ Static const usb_hub_descriptor_t dwc_otg_hubd = {
 Static usbd_status
 dwc_otg_root_ctrl_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	mutex_enter(&sc->sc_lock);
@@ -700,7 +700,7 @@ dwc_otg_root_ctrl_transfer(usbd_xfer_handle xfer)
 Static usbd_status
 dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usb_device_request_t *req;
 	uint8_t *buf;
 	int len, value, index, l, totlen;
@@ -1100,7 +1100,7 @@ dwc_otg_root_ctrl_done(usbd_xfer_handle xfer)
 Static usbd_status
 dwc_otg_root_intr_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	DPRINTF(("%s\n", __func__));
@@ -1120,7 +1120,7 @@ Static usbd_status
 dwc_otg_root_intr_start(usbd_xfer_handle xfer)
 {
 	usbd_pipe_handle pipe = xfer->pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -1139,7 +1139,7 @@ Static void
 dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 {
 #ifdef DIAGNOSTIC
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 #endif
 
 	DPRINTF(("%s\n", __func__));
@@ -1157,7 +1157,7 @@ dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 Static void
 dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 {
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -1178,7 +1178,7 @@ dwc_otg_root_intr_done(usbd_xfer_handle xfer)
 Static usbd_status
 dwc_otg_device_ctrl_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	DPRINTF(("%s\n", __func__));
@@ -1197,7 +1197,7 @@ dwc_otg_device_ctrl_transfer(usbd_xfer_handle xfer)
 Static usbd_status
 dwc_otg_device_ctrl_start(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1217,7 +1217,7 @@ Static void
 dwc_otg_device_ctrl_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	dpipe = dpipe;
 	sc = sc;
@@ -1229,7 +1229,7 @@ dwc_otg_device_ctrl_close(usbd_pipe_handle pipe)
 Static usbd_status
 dwc_otg_device_bulk_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	DPRINTF(("%s\n", __func__));
@@ -1248,7 +1248,7 @@ dwc_otg_device_bulk_transfer(usbd_xfer_handle xfer)
 Static usbd_status
 dwc_otg_device_bulk_start(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1259,7 +1259,7 @@ dwc_otg_device_bulk_start(usbd_xfer_handle xfer)
 Static void
 dwc_otg_device_bulk_abort(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	DPRINTF(("%s\n", __func__));
 
 	sc = sc;
@@ -1269,7 +1269,7 @@ Static void
 dwc_otg_device_bulk_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -1282,7 +1282,7 @@ dwc_otg_device_bulk_close(usbd_pipe_handle pipe)
 Static usbd_status
 dwc_otg_device_intr_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	DPRINTF(("%s\n", __func__));
@@ -1303,7 +1303,7 @@ dwc_otg_device_intr_start(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 	usbd_device_handle dev = dpipe->pipe.device;
-	dwc_otg_softc_t *sc = dev->bus->hci_private;
+	struct dwc_otg_softc *sc = dev->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1315,7 +1315,7 @@ dwc_otg_device_intr_start(usbd_xfer_handle xfer)
 Static void
 dwc_otg_device_intr_abort(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1325,7 +1325,7 @@ Static void
 dwc_otg_device_intr_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	dpipe = dpipe;
 	sc = sc;
@@ -1337,7 +1337,7 @@ dwc_otg_device_intr_close(usbd_pipe_handle pipe)
 usbd_status
 dwc_otg_device_isoc_transfer(usbd_xfer_handle xfer)
 {
-	dwc_otg_softc_t *sc = xfer->pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
 	DPRINTF(("%s\n", __func__));
@@ -1358,7 +1358,7 @@ dwc_otg_device_isoc_enter(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 	usbd_device_handle dev = dpipe->pipe.device;
-	dwc_otg_softc_t *sc = dev->bus->hci_private;
+	struct dwc_otg_softc *sc = dev->bus->hci_private;
 
 	DPRINTF(("%s\n", __func__));
 
@@ -1369,7 +1369,7 @@ usbd_status
 dwc_otg_device_isoc_start(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1381,7 +1381,7 @@ void
 dwc_otg_device_isoc_abort(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	dwc_otg_softc_t *sc = dpipe->pipe.device->bus->hci_private;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	sc = sc;
 	DPRINTF(("%s\n", __func__));
@@ -1398,7 +1398,7 @@ usbd_status
 dwc_otg_setup_isoc(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	dpipe = dpipe;
 	sc = sc;
@@ -1411,7 +1411,7 @@ void
 dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	dwc_otg_softc_t *sc = pipe->device->bus->hci_private;
+	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
 	dpipe = dpipe;
 	sc = sc;
@@ -1422,7 +1422,7 @@ dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 
 int dwc_otg_intr(void *p)
 {
-	dwc_otg_softc_t *sc = p;
+	struct dwc_otg_softc *sc = p;
 	int ret = 0;
 
 	if (sc == NULL)
@@ -1460,7 +1460,7 @@ dwc_otg_detach(struct dwc_otg_softc *sc, int flags)
 bool
 dwc_otg_shutdown(device_t self, int flags)
 {
-	dwc_otg_softc_t *sc = device_private(self);
+	struct dwc_otg_softc *sc = device_private(self);
 
 	sc = sc;
 
@@ -1488,7 +1488,7 @@ dwc_otg_activate(device_t self, enum devact act)
 bool
 dwc_otg_resume(device_t dv, const pmf_qual_t *qual)
 {
-	dwc_otg_softc_t *sc = device_private(dv);
+	struct dwc_otg_softc *sc = device_private(dv);
 
 	sc = sc;
 
@@ -1498,7 +1498,7 @@ dwc_otg_resume(device_t dv, const pmf_qual_t *qual)
 bool
 dwc_otg_suspend(device_t dv, const pmf_qual_t *qual)
 {
-	dwc_otg_softc_t *sc = device_private(dv);
+	struct dwc_otg_softc *sc = device_private(dv);
 
 	sc = sc;
 
@@ -1509,7 +1509,7 @@ dwc_otg_suspend(device_t dv, const pmf_qual_t *qual)
 
 #ifdef DWC_OTG_DEBUG
 void
-dwc_otg_dump_global_regs(dwc_otg_softc_t *sc)
+dwc_otg_dump_global_regs(struct dwc_otg_softc *sc)
 {
 	int i, n;
 
@@ -1549,7 +1549,7 @@ dwc_otg_dump_global_regs(dwc_otg_softc_t *sc)
 }
 
 void
-dwc_otg_dump_host_regs(dwc_otg_softc_t *sc)
+dwc_otg_dump_host_regs(struct dwc_otg_softc *sc)
 {
 	int i, n;
 
@@ -1727,7 +1727,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 }
 
 Static void
-dwc_otg_clocks_on(dwc_otg_softc_t* sc)
+dwc_otg_clocks_on(struct dwc_otg_softc* sc)
 {
 	if (sc->sc_flags.clocks_off &&
 	    sc->sc_flags.port_powered) {
@@ -1741,7 +1741,7 @@ dwc_otg_clocks_on(dwc_otg_softc_t* sc)
 }
 
 Static void
-dwc_otg_clocks_off(dwc_otg_softc_t* sc)
+dwc_otg_clocks_off(struct dwc_otg_softc* sc)
 {
 	if (!sc->sc_flags.clocks_off) {
 
@@ -2041,7 +2041,7 @@ dwc_otg_timer_stop(struct dwc_otg_softc *sc)
 }
 
 Static void
-dwc_otg_interrupt_poll(dwc_otg_softc_t *sc)
+dwc_otg_interrupt_poll(struct dwc_otg_softc *sc)
 {
 	uint32_t temp;
 	uint8_t got_rx_status;
@@ -2207,7 +2207,7 @@ dwc_otg_vbus_interrupt(struct dwc_otg_softc *sc)
 
 
 int
-dwc_otg_interrupt(dwc_otg_softc_t *sc)
+dwc_otg_interrupt(struct dwc_otg_softc *sc)
 {
 	uint32_t status;
 
@@ -2407,7 +2407,7 @@ dwc_otg_interrupt(dwc_otg_softc_t *sc)
 
 
 usbd_status
-dwc_otg_init(dwc_otg_softc_t *sc)
+dwc_otg_init(struct dwc_otg_softc *sc)
 {
 	uint32_t temp;
 	int i;
