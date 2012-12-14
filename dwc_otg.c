@@ -314,14 +314,17 @@ dwc_otg_freem(struct usbd_bus *bus, usb_dma_t *dma)
 usbd_xfer_handle
 dwc_otg_allocx(struct usbd_bus *bus)
 {
-	/* Unused for now, maybe add some kind of free list to avoid too much
-	 * rellocation
-	 struct dwc_otg_softc *sc = bus->hci_private;
+	/*
+	 * Unused for now, maybe add some kind of free list to avoid too much
+	 * reallocation
+	 *
+	 * struct dwc_otg_softc *sc = bus->hci_private;
 	 */
 	(void) bus;
 	usbd_xfer_handle xfer;
 
 	xfer = kmem_zalloc(sizeof(struct dwc_otg_xfer), KM_SLEEP);
+
 #ifdef DIAGNOSTIC
 	if (xfer != NULL) {
 		xfer->busy_free = XFER_BUSY;
