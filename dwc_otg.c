@@ -60,14 +60,19 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/controller/dwc_otg.c,v 1.19 2012/09/28 15:24
 #include <dev/usb/dwc_otgvar.h>
 #include <dev/usb/usbroothub_subr.h>
 
-
+#define DWC_OTG_DEBUG
 #ifdef DWC_OTG_DEBUG
-#define DPRINTF(x)	if (dwc_otgdebug) printf x
-#define DPRINTFN(n,x)	if (dwc_otgdebug>(n)) printf x
+#define	DPRINTFN(n,fmt,...) do {			\
+	if (dwc_otgdebug >= (n)) {			\
+		printf("%s: " fmt,			\
+		__FUNCTION__,## __VA_ARGS__);		\
+	}						\
+} while (0)
+#define	DPRINTF(...)	DPRINTFN(1, __VA_ARGS__)
 int dwc_otgdebug = 0;
 #else
-#define DPRINTF(x)
-#define DPRINTFN(n,x)
+#define	DPRINTF(...) do { } while (0)
+#define	DPRINTFN(...) do { } while (0)
 #endif
 
 #define	DWC_OTG_MSK_GINT_ENABLED	\
@@ -375,7 +380,7 @@ dwc_otg_waitintr(struct dwc_otg_softc *sc, usbd_xfer_handle xfer)
 			break;
 		intrs = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
 
-		DPRINTFN(15,("%s: 0x%08x\n", __func__, intrs));
+		DPRINTFN(15, "0x%08x\n", intrs);
 
 		if (intrs) {
 			mutex_spin_enter(&sc->sc_intr_lock);
@@ -387,7 +392,7 @@ dwc_otg_waitintr(struct dwc_otg_softc *sc, usbd_xfer_handle xfer)
 	}
 
 	/* Timeout */
-	DPRINTF(("%s: timeout\n", __func__));
+	DPRINTF("timeout\n");
 
 	xfer->status = USBD_TIMEOUT;
 	mutex_enter(&sc->sc_lock);
@@ -400,7 +405,7 @@ dwc_otg_device_ctrl_done(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	dpipe = dpipe;
 }
@@ -411,7 +416,7 @@ dwc_otg_device_intr_done(usbd_xfer_handle xfer)
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	sc = sc;
 }
@@ -421,7 +426,7 @@ dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	sc = sc;
 }
@@ -433,7 +438,7 @@ dwc_otg_timeout(void *addr)
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)dxfer->xfer.pipe;
 	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
-	DPRINTF(("%s: dxfer=%p\n", __func__, dxfer));
+	DPRINTF("dxfer=%p\n", dxfer);
 
 	if (sc->sc_dying) {
 		mutex_enter(&sc->sc_lock);
@@ -454,7 +459,7 @@ dwc_otg_timeout_task(void *addr)
 	usbd_xfer_handle xfer = addr;
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
-	DPRINTF(("%s: xfer=%p\n", __func__, xfer));
+	DPRINTF("xfer=%p\n", xfer);
 
 	mutex_enter(&sc->sc_lock);
 	dwc_otg_abort_xfer(xfer, USBD_TIMEOUT);
@@ -471,8 +476,9 @@ dwc_otg_open(usbd_pipe_handle pipe)
 	uint8_t xfertype = UE_GET_XFERTYPE(ed->bmAttributes);
 	usbd_status err;
 
-	DPRINTF(("%s: addr %d xfertype %d dir %s\n", __func__, addr, xfertype,
-	    UE_GET_DIR(ed->bmAttributes) == UE_DIR_IN ? "in" : "out"));
+	DPRINTF("pipe %p addr %d xfertype %d dir %s\n", pipe,
+	    addr, xfertype,
+	    UE_GET_DIR(ed->bmAttributes) == UE_DIR_IN ? "in" : "out");
 
 	if (sc->sc_dying) {
 		err = USBD_IOERROR;
@@ -488,33 +494,33 @@ dwc_otg_open(usbd_pipe_handle pipe)
 			pipe->methods = &dwc_otg_root_intr_methods;
 			break;
 		default:
-			DPRINTF(("%s: bad bEndpointAddress 0x%02x\n", __func__,
-			    ed->bEndpointAddress));
+			DPRINTF("bad bEndpointAddress 0x%02x\n",
+			    ed->bEndpointAddress);
 			return USBD_INVAL;
 		}
-		DPRINTF(("%s: root hub pipe open\n", __func__));
+		DPRINTF("root hub pipe open\n");
 		return USBD_NORMAL_COMPLETION;
 	}
 
 	switch (xfertype) {
 	case UE_CONTROL:
 		pipe->methods = &dwc_otg_device_ctrl_methods;
-		DPRINTF(("%s: UE_CONTROL methods\n", __func__));
+		DPRINTF("UE_CONTROL methods\n");
 		break;
 	case UE_INTERRUPT:
-		DPRINTF(("%s: UE_INTERRUPT methods\n", __func__));
+		DPRINTF("UE_INTERRUPT methods\n");
 		pipe->methods = &dwc_otg_device_intr_methods;
 		break;
 	case UE_ISOCHRONOUS:
-		DPRINTF(("%s: US_ISOCHRONOUS methods\n", __func__));
+		DPRINTF("US_ISOCHRONOUS methods\n");
 		pipe->methods = &dwc_otg_device_isoc_methods;
 		break;
 	case UE_BULK:
-		DPRINTF(("%s: UE_BULK methods\n", __func__));
+		DPRINTF("UE_BULK methods\n");
 		pipe->methods = &dwc_otg_device_bulk_methods;
 		break;
 	default:
-		DPRINTF(("%s: bad xfer type %d\n", __func__, xfertype));
+		DPRINTF("bad xfer type %d\n", xfertype);
 		return USBD_INVAL;
 	}
 
@@ -557,8 +563,7 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
-
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	if (sc->sc_dying) {
 		xfer->status = status;
@@ -590,14 +595,14 @@ dwc_otg_abort_xfer(usbd_xfer_handle xfer, usbd_status status)
 Static void
 dwc_otg_noop(usbd_pipe_handle pipe)
 {
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 }
 
 Static void
 dwc_otg_device_clear_toggle(usbd_pipe_handle pipe)
 {
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 }
 
@@ -704,8 +709,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 
 	req = &xfer->request;
 
-	DPRINTFN(4, ("%s: type=0x%02x request=%02x\n", __func__,
-	    req->bmRequestType, req->bRequest));
+	DPRINTFN(4, "type=0x%02x request=%02x\n",
+	    req->bmRequestType, req->bRequest);
 
 	len = UGETW(req->wLength);
 	value = UGETW(req->wValue);
@@ -732,7 +737,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		}
 		break;
 	case C(UR_GET_DESCRIPTOR, UT_READ_DEVICE):
-		DPRINTFN(8, ("%s: wValue=0x%04x\n", __func__, value));
+		DPRINTFN(8, "wValue=0x%04x\n", value);
 
 		if (len == 0)
 			break;
@@ -789,6 +794,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		}
 		break;
 	case C(UR_SET_ADDRESS, UT_WRITE_DEVICE):
+		DPRINTF("UR_SET_ADDRESS, UT_WRITE_DEVICE: addr %d\n",
+		    value);
 		if (value >= USB_MAX_DEVICES)
                         goto fail;
 
@@ -827,8 +834,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_OTHER):
-		DPRINTFN(9, ("%s: UR_CLEAR_FEATURE port=%d feature=%d\n",
-		    __func__, index, value));
+		DPRINTFN(9, "UR_CLEAR_FEATURE port=%d feature=%d\n",
+		    index, value);
 		if (index < 1 || index > sc->sc_noport)
                         goto fail;
 
@@ -904,7 +911,7 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 		totlen = len;
 		break;
 	case C(UR_GET_STATUS, UT_READ_CLASS_OTHER):
-		DPRINTFN(8, ("%s: get port status i=%d\n", __func__, index));
+		DPRINTFN(8, "get port status i=%d\n", index);
 
 		if (index < 1 || index > sc->sc_noport)
 			goto fail;
@@ -976,20 +983,20 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_OTHER):
-		DPRINTFN(9, ("%s: UR_SET_FEATURE port=%d feature=%d\n",
-		    __func__, index, value));
+		DPRINTFN(9, "UR_SET_FEATURE port=%d feature=%d\n",
+		    index, value);
 
 		if (index < 1 || index > sc->sc_noport)
 			goto fail;
 
 		switch (value) {
 		case UHF_PORT_ENABLE:
-			DPRINTF(("%s: UHF_PORT_ENABLE\n", __func__));
+			DPRINTF("UHF_PORT_ENABLE\n");
 			break;
 
 		case UHF_PORT_SUSPEND:
-			DPRINTF(("%s: UHF_PORT_SUSPEND device mode %d\n",
-			    __func__, sc->sc_flags.status_device_mode));
+			DPRINTF("UHF_PORT_SUSPEND device mode %d\n",
+			    sc->sc_flags.status_device_mode);
 
 			if (sc->sc_flags.status_device_mode == 0) {
 				/* set suspend BIT */
@@ -1002,8 +1009,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 			break;
 
 		case UHF_PORT_RESET:
-			DPRINTF(("%s: UHF_PORT_RESET device_mode %d\n",
-			    __func__, sc->sc_flags.status_device_mode));
+			DPRINTF("UHF_PORT_RESET device_mode %d\n",
+			    sc->sc_flags.status_device_mode);
 			if (sc->sc_flags.status_device_mode == 0) {
 
 				/* enable PORT reset */
@@ -1032,8 +1039,8 @@ dwc_otg_root_ctrl_start(usbd_xfer_handle xfer)
 // 			/* nops */
 // 			break;
 		case UHF_PORT_POWER:
-			DPRINTF(("%s: UHF_PORT_POWER mode %d\n",
-			   __func__, sc->sc_mode));
+			DPRINTF("UHF_PORT_POWER mode %d\n",
+			   sc->sc_mode);
 
 			if (sc->sc_mode == DWC_MODE_HOST ||
 			    sc->sc_mode == DWC_MODE_OTG) {
@@ -1067,7 +1074,7 @@ fail:
 Static void
 dwc_otg_root_ctrl_abort(usbd_xfer_handle xfer)
 {
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	/* Nothing to do, all transfers are synchronous. */
 }
@@ -1075,7 +1082,7 @@ dwc_otg_root_ctrl_abort(usbd_xfer_handle xfer)
 Static void
 dwc_otg_root_ctrl_close(usbd_pipe_handle pipe)
 {
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	/* Nothing to do. */
 }
@@ -1083,7 +1090,7 @@ dwc_otg_root_ctrl_close(usbd_pipe_handle pipe)
 Static void
 dwc_otg_root_ctrl_done(usbd_xfer_handle xfer)
 {
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	/* Nothing to do. */
 }
@@ -1094,7 +1101,7 @@ dwc_otg_root_intr_transfer(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	/* Insert last in queue. */
 	mutex_enter(&sc->sc_lock);
@@ -1113,7 +1120,7 @@ dwc_otg_root_intr_start(usbd_xfer_handle xfer)
 	usbd_pipe_handle pipe = xfer->pipe;
 	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	if (sc->sc_dying)
 		return (USBD_IOERROR);
@@ -1133,12 +1140,12 @@ dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 #endif
 
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	KASSERT(mutex_owned(&sc->sc_lock));
 
 	if (xfer->pipe->intrxfer == xfer) {
-		DPRINTF(("dwc_otg_root_intr_abort: remove\n"));
+ 		DPRINTF("remove\n");
 		xfer->pipe->intrxfer = NULL;
 	}
 	xfer->status = USBD_CANCELLED;
@@ -1150,7 +1157,7 @@ dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 
 	KASSERT(mutex_owned(&sc->sc_lock));
 
@@ -1160,7 +1167,7 @@ dwc_otg_root_intr_close(usbd_pipe_handle pipe)
 Static void
 dwc_otg_root_intr_done(usbd_xfer_handle xfer)
 {
-	DPRINTF(("%s\n", __func__));
+ 	DPRINTF("\n");
 }
 
 
@@ -1172,7 +1179,7 @@ dwc_otg_device_ctrl_transfer(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	dwc_otg_xfer_setup(xfer);
 	dwc_otg_setup_ctrl_chain(xfer);
@@ -1193,6 +1200,8 @@ dwc_otg_device_ctrl_start(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
+	DPRINTF("\n");
+
 	mutex_enter(&sc->sc_lock);
 	xfer->status = USBD_IN_PROGRESS;
 	mutex_exit(&sc->sc_lock);
@@ -1209,7 +1218,7 @@ Static void
 dwc_otg_device_ctrl_abort(usbd_xfer_handle xfer)
 {
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 Static void
@@ -1220,7 +1229,7 @@ dwc_otg_device_ctrl_close(usbd_pipe_handle pipe)
 
 	dpipe = dpipe;
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 /***********************************************************************/
@@ -1231,7 +1240,8 @@ dwc_otg_device_bulk_transfer(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
+
 
 	/* Insert last in queue. */
 	mutex_enter(&sc->sc_lock);
@@ -1250,7 +1260,7 @@ dwc_otg_device_bulk_start(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	return USBD_IN_PROGRESS;
 }
@@ -1259,7 +1269,7 @@ Static void
 dwc_otg_device_bulk_abort(usbd_xfer_handle xfer)
 {
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	sc = sc;
 }
@@ -1270,7 +1280,7 @@ dwc_otg_device_bulk_close(usbd_pipe_handle pipe)
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
 	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	dpipe = dpipe;
 	sc = sc;
@@ -1284,7 +1294,8 @@ dwc_otg_device_intr_transfer(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
+
 
 	/* Insert last in queue. */
 	mutex_enter(&sc->sc_lock);
@@ -1305,7 +1316,7 @@ dwc_otg_device_intr_start(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = dev->bus->hci_private;
 
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	return (USBD_IN_PROGRESS);
 
@@ -1317,7 +1328,7 @@ dwc_otg_device_intr_abort(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 Static void
@@ -1328,7 +1339,7 @@ dwc_otg_device_intr_close(usbd_pipe_handle pipe)
 
 	dpipe = dpipe;
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 /***********************************************************************/
@@ -1339,7 +1350,8 @@ dwc_otg_device_isoc_transfer(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 	usbd_status err;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
+
 
 	/* Insert last in queue. */
 	mutex_enter(&sc->sc_lock);
@@ -1359,7 +1371,7 @@ dwc_otg_device_isoc_enter(usbd_xfer_handle xfer)
 	usbd_device_handle dev = dpipe->pipe.device;
 	struct dwc_otg_softc *sc = dev->bus->hci_private;
 
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	sc = sc;
 }
@@ -1371,7 +1383,7 @@ dwc_otg_device_isoc_start(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	return USBD_IN_PROGRESS;
 }
@@ -1383,13 +1395,13 @@ dwc_otg_device_isoc_abort(usbd_xfer_handle xfer)
 	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
 
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 void
 dwc_otg_device_isoc_done(usbd_xfer_handle xfer)
 {
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 
@@ -1401,7 +1413,7 @@ dwc_otg_setup_isoc(usbd_pipe_handle pipe)
 
 	dpipe = dpipe;
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 
 	return USBD_NORMAL_COMPLETION;
 }
@@ -1414,7 +1426,7 @@ dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 
 	dpipe = dpipe;
 	sc = sc;
-	DPRINTF(("%s\n", __func__));
+	DPRINTF("\n");
 }
 
 /***********************************************************************/
@@ -1677,7 +1689,7 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 	tx_start = fifo_size;
 
 	if (fifo_size < 0x40) {
-		DPRINTFN(-1, ("Not enough data space for EP0 FIFO.\n"));
+		DPRINTFN(-1, "Not enough data space for EP0 FIFO.\n");
 		return EINVAL;
 	}
 
@@ -1770,9 +1782,8 @@ dwc_otg_init_fifo(struct dwc_otg_softc *sc, uint8_t mode)
 			pf->usb.is_simplex = 1;
 		}
 
-		DPRINTF(("FIFO%d = IN:%d / OUT:%d\n", x,
-		    pf->usb.max_in_frame_size,
-		    pf->usb.max_out_frame_size));
+		DPRINTF("FIFO%d = IN:%d / OUT:%d\n", x,
+		    pf->usb.max_in_frame_size, pf->usb.max_out_frame_size);
 	    }
 	}
 #endif
@@ -1798,7 +1809,7 @@ dwc_otg_clocks_on(struct dwc_otg_softc* sc)
 	if (sc->sc_flags.clocks_off &&
 	    sc->sc_flags.port_powered) {
 
-		DPRINTFN(5, ("\n"));
+		DPRINTFN(5, "\n");
 
 		/* TODO - platform specific */
 
@@ -1811,7 +1822,7 @@ dwc_otg_clocks_off(struct dwc_otg_softc* sc)
 {
 	if (!sc->sc_flags.clocks_off) {
 
-		DPRINTFN(5, ("\n"));
+		DPRINTFN(5, "\n");
 
 		/* TODO - platform specific */
 
@@ -1828,6 +1839,7 @@ dwc_otg_pull_up(struct dwc_otg_softc *sc)
 
 	if (!sc->sc_flags.d_pulled_up &&
 	    sc->sc_flags.port_powered) {
+		DPRINTF("up\n");
 		sc->sc_flags.d_pulled_up = 1;
 
 		temp = DWC_OTG_READ_4(sc, DOTG_DCTL);
@@ -1844,6 +1856,8 @@ dwc_otg_pull_down(struct dwc_otg_softc *sc)
 	/* pulldown D+, if possible */
 
 	if (sc->sc_flags.d_pulled_up) {
+		DPRINTF("down\n");
+
 		sc->sc_flags.d_pulled_up = 0;
 
 		temp = DWC_OTG_READ_4(sc, DOTG_DCTL);
@@ -1913,7 +1927,7 @@ dwc_otg_wakeup_peer(struct dwc_otg_softc *sc)
 	if (!sc->sc_flags.status_suspend)
 		return;
 
-	DPRINTFN(5, ("Remote wakeup\n"));
+	DPRINTFN(5, "Remote wakeup\n");
 
 	if (sc->sc_flags.status_device_mode) {
 		uint32_t temp;
@@ -1959,7 +1973,7 @@ dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
 {
 	uint32_t temp;
 
-	DPRINTFN(5, ("addr=%d\n", addr));
+	DPRINTFN(5, "addr=%d\n", addr);
 
 	temp = DWC_OTG_READ_4(sc, DOTG_DCFG);
 	temp &= ~DCFG_DEVADDR_SET(0x7F);
@@ -1970,7 +1984,7 @@ dwc_otg_set_address(struct dwc_otg_softc *sc, uint8_t addr)
 static void
 dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 {
-	DPRINTFN(5, ("RX status clear\n"));
+	DPRINTFN(5, "RX status clear\n");
 
 	/* enable RX FIFO level interrupt */
 	sc->sc_irq_mask |= GINTSTS_RXFLVL;
@@ -1979,7 +1993,6 @@ dwc_otg_common_rx_ack(struct dwc_otg_softc *sc)
 	/* clear cached status */
 	sc->sc_last_rx_status = 0;
 }
-
 
 static void
 dwc_otg_clear_hcint(struct dwc_otg_softc *sc, uint8_t x)
@@ -2001,7 +2014,7 @@ dwc_otg_host_channel_wait(struct dwc_otg_td *td)
 
 	x = td->channel;
 
-	DPRINTF(("CH=%d\n", x));
+	DPRINTF("CH=%d\n", x);
 
 	/* get pointer to softc */
 	sc = DWC_OTG_TD2SC(td);
@@ -2033,8 +2046,8 @@ dwc_otg_host_channel_wait(struct dwc_otg_td *td)
 		/* clear interrupts */
 		dwc_otg_clear_hcint(sc, x);
 
-		DPRINTF(("CH=%d HCCHAR=0x%08x "
-		    "HCSPLT=0x%08x\n", x, td->hcchar, td->hcsplt));
+		DPRINTF("CH=%d HCCHAR=0x%08x "
+		    "HCSPLT=0x%08x\n", x, td->hcchar, td->hcsplt);
 
 		/* ack any pending messages */
 		if (sc->sc_last_rx_status != 0 &&
@@ -2062,7 +2075,7 @@ dwc_otg_host_channel_alloc(struct dwc_otg_td *td)
 	uint8_t x;
 	uint8_t max_channel;
 
-	DPRINTFN(9, ("%s\n", __func__));
+	DPRINTFN(9, "\n");
 
 	if (td->channel < DWC_OTG_MAX_CHANNELS)
 		return (0);		/* already allocated */
@@ -2090,8 +2103,8 @@ dwc_otg_host_channel_alloc(struct dwc_otg_td *td)
 		/* clear interrupts */
 		dwc_otg_clear_hcint(sc, x);
 
-		DPRINTF(("%s: CH=%d HCCHAR=0x%08x HCSPLT=0x%08x\n", __func__,
-		    x, td->hcchar, td->hcsplt));
+		DPRINTF("CH=%d HCCHAR=0x%08x HCSPLT=0x%08x\n",
+		    x, td->hcchar, td->hcsplt);
 
 		/* set active channel */
 		sc->sc_active_rx_ep |= (1 << x);
@@ -2135,7 +2148,7 @@ dwc_otg_host_channel_free(struct dwc_otg_td *td)
 	x = td->channel;
 	td->channel = DWC_OTG_MAX_CHANNELS;
 
-	DPRINTF(("CH=%d\n", x));
+	DPRINTF("CH=%d\n", x);
 
 	/* get pointer to softc */
 	sc = DWC_OTG_TD2SC(td);
@@ -2171,21 +2184,21 @@ dwc_otg_host_setup_tx(struct dwc_otg_td *td)
 
 	hcint = sc->sc_chan_state[td->channel].hcint;
 
-	DPRINTF(("%s: CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
-	    __func__, td->channel, td->state, hcint,
+	DPRINTF("CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
+	    td->channel, td->state, hcint,
 	    DWC_OTG_READ_4(sc, DOTG_HCCHAR(td->channel)),
-	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel))));
+	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel)));
 
 	if (hcint & (HCINT_RETRY |
 	    HCINT_ACK | HCINT_NYET)) {
 		/* give success bits priority over failure bits */
 	} else if (hcint & HCINT_STALL) {
-		DPRINTF(("CH=%d STALL\n", td->channel));
+		DPRINTF("CH=%d STALL\n", td->channel);
 		td->error_stall = 1;
 		td->error_any = 1;
 		return (0);		/* complete */
 	} else if (hcint & HCINT_ERRORS) {
-		DPRINTF(("CH=%d ERROR\n", td->channel));
+		DPRINTF("CH=%d ERROR\n", td->channel);
 		td->errcnt++;
 		if (td->hcsplt != 0 || td->errcnt >= 3) {
 			td->error_any = 1;
@@ -2265,7 +2278,7 @@ dwc_otg_host_setup_tx(struct dwc_otg_td *td)
 	return (1);		/* busy */
 
 send_pkt:
-	DPRINTF(("%s: send_pkt %zu td->remainder %d\n", __func__, sizeof(req), td->remainder));
+	DPRINTF("send_pkt %zu td->remainder %d\n", sizeof(req), td->remainder);
 	if (sizeof(req) != td->remainder) {
 		td->error_any = 1;
 		return (0);		/* complete */
@@ -2291,10 +2304,11 @@ send_pkt_sync:
 	} else {
 		td->state = DWC_CHAN_ST_WAIT_ANE;
 	}
-	DPRINTF(("%s: send_pkt_sync td->buf %p len %zu != 0\n", __func__, td->buf, sizeof(req)));
+	DPRINTF("send_pkt_sync td->buf %p len %zu != 0\n", td->buf, sizeof(req));
 
 	/* XXX Why ? */
 	usbd_copy_out(td->buf, 0, &req, sizeof(req));
+
 
 	DWC_OTG_WRITE_4(sc, DOTG_HCTSIZ(td->channel),
 	    (sizeof(req) << HCTSIZ_XFERSIZE_SHIFT) |
@@ -2319,7 +2333,7 @@ send_pkt_sync:
 	return (1);	/* busy */
 
 send_cpkt:
-	DPRINTF(("%s: send_cpkt td->buf %p size %zu\n", __func__, td->buf, sizeof(req)));
+	DPRINTF("send_cpkt td->buf %p size %zu\n", td->buf, sizeof(req));
 
 	td->hcsplt |= HCSPLT_COMPSPLT;
 	td->state = DWC_CHAN_ST_WAIT_C_ANE;
@@ -2401,10 +2415,10 @@ dwc_otg_host_data_rx(struct dwc_otg_td *td)
 
 	hcint = sc->sc_chan_state[td->channel].hcint;
 
-	DPRINTF(("%s: CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
-	    __func__, td->channel, td->state, hcint,
+	DPRINTF("CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
+	    td->channel, td->state, hcint,
 	    DWC_OTG_READ_4(sc, DOTG_HCCHAR(td->channel)),
-	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel))));
+	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel)));
 
 	/* check interrupt bits */
 
@@ -2412,12 +2426,12 @@ dwc_otg_host_data_rx(struct dwc_otg_td *td)
 	    HCINT_ACK | HCINT_NYET)) {
 		/* give success bits priority over failure bits */
 	} else if (hcint & HCINT_STALL) {
-		DPRINTF(("CH=%d STALL\n", td->channel));
+		DPRINTF("CH=%d STALL\n", td->channel);
 		td->error_stall = 1;
 		td->error_any = 1;
 		return (0);		/* complete */
 	} else if (hcint & HCINT_ERRORS) {
-		DPRINTF(("CH=%d ERROR\n", td->channel));
+		DPRINTF("CH=%d ERROR\n", td->channel);
 		td->errcnt++;
 		if (td->hcsplt != 0 || td->errcnt >= 3) {
 			td->error_any = 1;
@@ -2446,15 +2460,15 @@ dwc_otg_host_data_rx(struct dwc_otg_td *td)
 	switch (sc->sc_last_rx_status & GRXSTSRD_PKTSTS_MASK) {
 	case GRXSTSRH_IN_DATA:
 
-		DPRINTF(("DATA ST=%d STATUS=0x%08x\n",
-		    (int)td->state, (int)sc->sc_last_rx_status));
+		DPRINTF("DATA ST=%d STATUS=0x%08x\n",
+		    (int)td->state, (int)sc->sc_last_rx_status);
 
 		if (hcint & HCINT_SOFTWARE_ONLY) {
 			/*
 			 * When using SPLIT transactions on interrupt
 			 * endpoints, sometimes data occurs twice.
 			 */
-			DPRINTF(("Data already received\n"));
+			DPRINTF("Data already received\n");
 			break;
 		}
 
@@ -2499,7 +2513,7 @@ dwc_otg_host_data_rx(struct dwc_otg_td *td)
 		break;
 
 	default:
-		DPRINTF(("OTHER\n"));
+		DPRINTF("OTHER\n");
 		break;
 	}
 	/* release FIFO */
@@ -2585,7 +2599,7 @@ check_state:
 	goto busy;
 
 receive_pkt:
-	DPRINTF(("%s: receive_pkt\n", __func__));
+	DPRINTF("receive_pkt\n");
 
 	if (td->hcsplt != 0) {
 		count = DWC_OTG_READ_4(sc, DOTG_HFNUM) & 7;
@@ -2706,21 +2720,21 @@ dwc_otg_host_data_tx(struct dwc_otg_td *td)
 
 	hcint = sc->sc_chan_state[td->channel].hcint;
 
-	DPRINTF(("%s: CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
-	    __func__, td->channel, td->state, hcint,
+	DPRINTF("CH=%d ST=%d HCINT=0x%08x HCCHAR=0x%08x HCTSIZ=0x%08x\n",
+	    td->channel, td->state, hcint,
 	    DWC_OTG_READ_4(sc, DOTG_HCCHAR(td->channel)),
-	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel))));
+	    DWC_OTG_READ_4(sc, DOTG_HCTSIZ(td->channel)));
 
 	if (hcint & (HCINT_RETRY |
 	    HCINT_ACK | HCINT_NYET)) {
 		/* give success bits priority over failure bits */
 	} else if (hcint & HCINT_STALL) {
-		DPRINTF(("CH=%d STALL\n", td->channel));
+		DPRINTF("CH=%d STALL\n", td->channel);
 		td->error_stall = 1;
 		td->error_any = 1;
 		return (0);		/* complete */
 	} else if (hcint & HCINT_ERRORS) {
-		DPRINTF(("CH=%d ERROR\n", td->channel));
+		DPRINTF("CH=%d ERROR\n", td->channel);
 		td->errcnt++;
 		if (td->hcsplt != 0 || td->errcnt >= 3) {
 			td->error_any = 1;
@@ -2883,16 +2897,18 @@ send_pkt_sync:
 		/* clear topmost word before copy */
 		sc->sc_tx_bounce_buffer[(count - 1) / 4] = 0;
 
-		DPRINTF(("%s: send_pkt_sync td->buf %p len %d\n", __func__, td->buf, count));
+		DPRINTF("send_pkt_sync td->buf %p len %d\n", td->buf, count);
 
 		/* copy out data */
 		usbd_copy_out(td->buf, td->offset,
 		    sc->sc_tx_bounce_buffer, count);
 
 		{
+			printf("%s: (count = %d)", __func__, count);
 			int i = 0;
 			for (; i < (count +3 ); i++)
-				DPRINTF(("%02x ", *((uint8_t *)sc->sc_tx_bounce_buffer + i)));
+				printf("%02x ", *((uint8_t *)sc->sc_tx_bounce_buffer + i));
+			printf("\n");
 		}
 
 		/* transfer data into FIFO */
@@ -2942,7 +2958,7 @@ dwc_otg_xfer_do_fifo(usbd_xfer_handle xfer)
 	uint8_t channel;
 	uint8_t tmr_val;
 	uint8_t tmr_res;
-	DPRINTFN(9, ("%s xfer %p td %p\n", __func__, xfer, dxfer->td_transfer_cache));
+	DPRINTFN(9, "xfer %p td %p\n", xfer, dxfer->td_transfer_cache);
 
 	td = dxfer->td_transfer_cache;
 
@@ -3110,7 +3126,8 @@ repeat:
 
 			/* receive data, if any */
 			if (temp != 0) {
-				DPRINTF(("Reading %d bytes from ep %d\n", temp, ep_no));
+				DPRINTF("Reading %d bytes from ep %d\n", temp,
+				    ep_no);
 				bus_space_read_region_4(sc->sc_iot, sc->sc_ioh,
 					DOTG_DFIFO(ep_no),
 					sc->sc_rx_bounce_buffer, (temp+3)/4);
@@ -3124,11 +3141,12 @@ repeat:
 
 			got_rx_status = 1;
 
-			DPRINTFN(5, ("RX status = 0x%08x: ch=%d pid=%d bytes=%d sts=%d\n",
+			DPRINTFN(5, "RX status = 0x%08x: "
+			    "ch=%d pid=%d bytes=%d sts=%d\n",
 			    sc->sc_last_rx_status, ep_no,
 			    (sc->sc_last_rx_status >> 15) & 3,
 			    GRXSTSRD_BCNT_GET(sc->sc_last_rx_status),
-			    (sc->sc_last_rx_status >> 17) & 15));
+			    (sc->sc_last_rx_status >> 17) & 15);
 		} else {
 			got_rx_status = 0;
 		}
@@ -3137,6 +3155,7 @@ repeat:
 
 		ep_no = GRXSTSRD_CHNUM_GET(
 		    sc->sc_last_rx_status);
+		DPRINTF("ep_no %d\n", ep_no);
 
 		/* check if we should dump the data */
 		if (!(sc->sc_active_rx_ep & (1U << ep_no))) {
@@ -3233,9 +3252,9 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 	status = DWC_OTG_READ_4(sc, DOTG_GINTSTS);
 	DWC_OTG_WRITE_4(sc, DOTG_GINTSTS, status);
 
-	DPRINTFN(14, ("GINTSTS=0x%08x HAINT=0x%08x HFNUM=0x%08x\n",
+	DPRINTFN(14, "GINTSTS=0x%08x HAINT=0x%08x HFNUM=0x%08x\n",
 	    status, DWC_OTG_READ_4(sc, DOTG_HAINT),
-	    DWC_OTG_READ_4(sc, DOTG_HFNUM)));
+	    DWC_OTG_READ_4(sc, DOTG_HFNUM));
 
 	if (status & GINTSTS_USBRST) {
 		/* set correct state */
@@ -3253,7 +3272,7 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 	if (status & GINTSTS_ENUMDONE) {
 		uint32_t temp;
 
-		DPRINTFN(5, ("end of reset\n"));
+		DPRINTFN(5, "end of reset\n");
 
 		/* set correct state */
 		sc->sc_flags.status_device_mode = 1;
@@ -3288,6 +3307,7 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 	}
 
 	if (status & GINTSTS_PRTINT) {
+		DPRINTF("GINTSTS_PRTINT\n");
 		uint32_t hprt;
 
 		hprt = DWC_OTG_READ_4(sc, DOTG_HPRT);
@@ -3298,7 +3318,7 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 		    HPRT_PRTCONNDET | HPRT_PRTOVRCURRCHNG)) |
 		    sc->sc_hprt_val);
 
-		DPRINTFN(12, ("GINTSTS=0x%08x, HPRT=0x%08x\n", status, hprt));
+		DPRINTFN(12, "GINTSTS=0x%08x, HPRT=0x%08x\n", status, hprt);
 
 		sc->sc_flags.status_device_mode = 0;
 
@@ -3359,13 +3379,13 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 	 */
 	if (status & GINTSTS_WKUPINT) {
 
-		DPRINTFN(5, ("resume interrupt\n"));
+		DPRINTFN(5, "resume interrupt\n");
 
 		dwc_otg_resume_irq(sc);
 
 	} else if (status & GINTSTS_USBSUSP) {
 
-		DPRINTFN(5, ("suspend interrupt\n"));
+		DPRINTFN(5, "suspend interrupt\n");
 
 		dwc_otg_suspend_irq(sc);
 	}
@@ -3378,7 +3398,7 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 
 		temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
 
-		DPRINTFN(5, ("GOTGCTL=0x%08x\n", temp));
+		DPRINTFN(5, "GOTGCTL=0x%08x\n", temp);
 
 		dwc_otg_vbus_interrupt(sc);
 	}
@@ -3403,8 +3423,7 @@ dwc_otg_interrupt(struct dwc_otg_softc *sc)
 			uint8_t x;
 			uint8_t y;
 
-			DPRINTFN(12, ("SOF interrupt\n"));
-
+//  			DPRINTFN(5, "SOF interrupt\n");
 			for (x = y = 0; x != sc->sc_host_ch_max; x++) {
 				if (sc->sc_chan_state[x].wait_sof != 0) {
 					if (--(sc->sc_chan_state[x].wait_sof) != 0)
@@ -3473,14 +3492,13 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 	uint8_t is_host;
 	int done;
 
-	DPRINTFN(3,("%s: type=0x%02x, request=0x%02x, wValue=0x%04x,"
+	DPRINTFN(3, "type=0x%02x, request=0x%02x, wValue=0x%04x,"
 	    "wIndex=0x%04x len=%d, addr=%d, endpt=%d, dir=%s, speed=%d\n",
-	    __func__, req->bmRequestType, req->bRequest, UGETW(req->wValue),
+	    req->bmRequestType, req->bRequest, UGETW(req->wValue),
 	    UGETW(req->wIndex), UGETW(req->wLength), dev->address,
 	    UE_GET_ADDR(ed->bmAttributes), dir == UT_READ ? "in" :"out",
-	    dev->speed));
+	    dev->speed);
 
-	DPRINTF(("%s: xfer->length %d\n", __func__, xfer->length));
 	temp.max_frame_size = UGETW(ed->wMaxPacketSize);
 
 	td = dxfer->td_start[0];
@@ -3544,7 +3562,7 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 		if (temp.len > UGETW(ed->wMaxPacketSize))
 			temp.len = UGETW(ed->wMaxPacketSize);
 
-		DPRINTF(("%s: buf %p len %d\n", __func__, temp.buf, temp.len));
+		DPRINTF("buf %p len %d\n", temp.buf, temp.len);
 		dwc_otg_setup_standard_chain_sub(&temp);
 
 		done += temp.len;
@@ -3562,9 +3580,9 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 	if (1 /*!xfer->flags_int.control_act*/) {
 
 		/*
-			* Send a DATA1 message and invert the current
-			* endpoint direction.
-			*/
+		 * Send a DATA1 message and invert the current
+		 * endpoint direction.
+		 */
 		if (dir == UE_DIR_IN) {
 			temp.func = &dwc_otg_host_data_tx;
 		} else {
@@ -3623,13 +3641,14 @@ dwc_otg_setup_standard_chain(usbd_xfer_handle xfer)
 	if (dir == UE_DIR_IN)
 		hcchar |= HCCHAR_EPDIR_IN;
 #endif
+
 	switch (dev->speed) {
 	case USB_SPEED_LOW:
-		DPRINTF(("%s: USB_SPEED_LOW\n", __func__));
+		DPRINTF("USB_SPEED_LOW\n");
 		hcchar |= HCCHAR_LSPDDEV;
 		/* FALLTHROUGH */
 	case USB_SPEED_FULL:
-		DPRINTF(("%s: USB_SPEED_FULL\n", __func__));
+		DPRINTF("USB_SPEED_FULL\n");
 		/* check if root HUB port is running High Speed */
 		if (sc->sc_flags.status_high_speed != 0) {
 			hcsplt = HCSPLT_SPLTENA |
@@ -3643,7 +3662,7 @@ dwc_otg_setup_standard_chain(usbd_xfer_handle xfer)
 		break;
 
 	case USB_SPEED_HIGH:
-		DPRINTF(("%s: USB_SPEED_HIGH\n", __func__));
+		DPRINTF("USB_SPEED_HIGH\n");
 		if (xfertype == UE_ISOCHRONOUS || xfertype == UE_INTERRUPT) {
 			hcchar |= (/*(xfer->max_packet_count & 3)*/ 1
 				<< HCCHAR_MC_SHIFT);
@@ -3676,12 +3695,13 @@ dwc_otg_setup_standard_chain(usbd_xfer_handle xfer)
 		ival = 0;
 	}
 
-	DPRINTF(("%s: hcchar 0x%08x hcchar 0x%08x ival %d\n", __func__,
-		hcchar, hcsplt, ival));
+	DPRINTF("hcchar 0x%08x hcchar 0x%08x ival %d\n",
+		hcchar, hcsplt, ival);
 
 	/* store configuration in all TD's */
 	while (1) {
-		DPRINTF(("%s: td %p hcchar %08x hcsplt %08x\n", __func__, td, hcchar, hcsplt));
+		DPRINTF("td %p hcchar %08x hcsplt %08x\n", td,
+		    hcchar, hcsplt);
 
 		td->hcchar = hcchar;
 		td->hcsplt = hcsplt;
@@ -3694,6 +3714,7 @@ dwc_otg_setup_standard_chain(usbd_xfer_handle xfer)
 }
 
 
+
 Static void
 dwc_otg_start_standard_chain(usbd_xfer_handle xfer)
 {
@@ -3702,7 +3723,7 @@ dwc_otg_start_standard_chain(usbd_xfer_handle xfer)
 	usbd_device_handle dev = dpipe->pipe.device;
 	struct dwc_otg_softc *sc = dev->bus->hci_private;
 
-	DPRINTFN(9, ("%s\n", __func__));
+	DPRINTFN(9, "\n");
 
 	/* poll one time - will turn on interrupts */
 	if (dwc_otg_xfer_do_fifo(xfer)) {
@@ -3718,7 +3739,7 @@ dwc_otg_start_standard_chain(usbd_xfer_handle xfer)
 			    mstohz(xfer->timeout), dwc_otg_timeout, xfer);
 		}
 	}
-	DPRINTFN(9, ("%s - done\n", __func__));
+	DPRINTFN(9, "done\n");
 
 }
 
@@ -3732,7 +3753,7 @@ dwc_otg_standard_done_sub(usbd_xfer_handle xfer)
 	uint32_t len;
 	usbd_status error;
 
-	DPRINTFN(9, ("%s td %p\n", __func__, dxfer->td_transfer_cache));
+	DPRINTFN(9, "td %p\n", dxfer->td_transfer_cache);
 
 	td = dxfer->td_transfer_cache;
 
@@ -3806,8 +3827,8 @@ dwc_otg_standard_done(usbd_xfer_handle xfer)
 	struct dwc_otg_td *td;
 	usbd_status err = 0;
 
-	DPRINTFN(13, ("%s: xfer=%p endpoint=%p transfer done\n", __func__,
-	    xfer, xfer->pipe->endpoint));
+	DPRINTFN(13, "xfer=%p endpoint=%p transfer done\n",
+	    xfer, xfer->pipe->endpoint);
 
 	/* reset scanner */
 
@@ -3854,6 +3875,7 @@ done:
 	dwc_otg_device_done(xfer, err);
 }
 
+
 /*------------------------------------------------------------------------*
  *	dwc_otg_device_done
  *
@@ -3866,9 +3888,8 @@ dwc_otg_device_done(usbd_xfer_handle xfer, usbd_status error)
 	struct dwc_otg_xfer *dxfer = (struct dwc_otg_xfer *)xfer;
 	struct dwc_otg_softc *sc = DWC_OTG_XFER2SC(xfer);
 
-	DPRINTFN(9, ("%s: xfer=%p, endpoint=%p, error=%d\n", __func__,
-	    xfer, xfer->pipe->endpoint, error));
-
+	DPRINTFN(9, "xfer=%p, endpoint=%p, error=%d\n",
+	    xfer, xfer->pipe->endpoint, error);
 	struct dwc_otg_td *td;
 
 	td = dxfer->td_transfer_first;
@@ -3918,7 +3939,7 @@ dwc_otg_init(struct dwc_otg_softc *sc)
 		USB_MEM_RESERVE);
 
 	temp = DWC_OTG_READ_4(sc, DOTG_GSNPSID);
-	DPRINTF(("Version = 0x%08x\n", temp));
+	DPRINTF("Version = 0x%08x\n", temp);
 
 	/* disconnect */
 	DWC_OTG_WRITE_4(sc, DOTG_DCTL, DCTL_SFTDISCON);
@@ -3983,9 +4004,9 @@ dwc_otg_init(struct dwc_otg_softc *sc)
 	temp = DWC_OTG_READ_4(sc, DOTG_GHWCFG4);
 	sc->sc_dev_in_ep_max = GHWCFG4_NUM_IN_EP_GET(temp);
 
-	DPRINTF(("Total FIFO size = %d bytes, Device EPs = %d/%d Host CHs = %d\n",
+	DPRINTF("Total FIFO size = %d bytes, Device EPs = %d/%d Host CHs = %d\n",
 		sc->sc_fifo_size, sc->sc_dev_ep_max, sc->sc_dev_in_ep_max,
-		sc->sc_host_ch_max));
+		sc->sc_host_ch_max);
 
 	/* setup fifo */
 	if (dwc_otg_init_fifo(sc, DWC_MODE_OTG))
@@ -4029,7 +4050,7 @@ dwc_otg_init(struct dwc_otg_softc *sc)
 	DWC_OTG_WRITE_4(sc, DOTG_GAHBCFG, GAHBCFG_GLBLINTRMSK);
 
 	temp = DWC_OTG_READ_4(sc, DOTG_GOTGCTL);
-	DPRINTFN(5, ("GOTCTL=0x%08x\n", temp));
+	DPRINTFN(5, "GOTCTL=0x%08x\n", temp);
 
 	/* read initial VBUS state */
 	dwc_otg_vbus_interrupt(sc);
