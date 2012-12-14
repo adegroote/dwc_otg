@@ -3490,21 +3490,18 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
 	usb_endpoint_descriptor_t *ed = dpipe->pipe.endpoint->edesc;
 	usb_device_request_t *req = &xfer->request;
-	usbd_device_handle dev = dpipe->pipe.device;
-	struct dwc_otg_softc *sc = dev->bus->hci_private;
 	uint8_t dir = (req->bmRequestType & UT_READ) ? UT_READ : UT_WRITE;
-
+	uint32_t len = UGETW(req->wLength);
 	struct dwc_otg_std_temp temp;
 	struct dwc_otg_td *td;
-	uint8_t is_host;
 	int done;
 
 	DPRINTFN(3, "type=0x%02x, request=0x%02x, wValue=0x%04x,"
 	    "wIndex=0x%04x len=%d, addr=%d, endpt=%d, dir=%s, speed=%d\n",
 	    req->bmRequestType, req->bRequest, UGETW(req->wValue),
-	    UGETW(req->wIndex), UGETW(req->wLength), dev->address,
+	    UGETW(req->wIndex), UGETW(req->wLength), dpipe->pipe.device->address,
 	    UE_GET_ADDR(ed->bmAttributes), dir == UT_READ ? "in" :"out",
-	    dev->speed);
+	    dpipe->pipe.device->speed);
 
 	temp.max_frame_size = UGETW(ed->wMaxPacketSize);
 
@@ -3512,96 +3509,70 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 	dxfer->td_transfer_first = td;
 	dxfer->td_transfer_cache = td;
 
-	/* setup temp */
+	/* Setup stage */
 	temp.xfer = xfer;
 	temp.buf = NULL;
 	temp.td = NULL;
 	temp.td_next = td;
 	temp.offset = 0;
-	temp.setup_alt_next = (xfer->flags & USBD_SHORT_XFER_OK);
 	temp.did_stall = 0; /* !xfer->flags_int.control_stall; */
-
-	is_host = (sc->sc_mode == DWC_MODE_HOST);
-	KASSERT(is_host);
 
 	temp.func = &dwc_otg_host_setup_tx;
 	temp.len = sizeof(*req);
 	temp.buf = req;
-	temp.short_pkt = temp.len ? 1 : 0;	/* XXXNH */
-	/* check for last frame */
-	if (1 /*xfer->nframes == 1*/) {
-		/* no STATUS stage yet, SETUP is last */
-		if (1 /*xfer->flags_int.control_act*/)
-			temp.setup_alt_next = 0;
-	}
+	temp.short_pkt = 1;		/* We're 8 bytes this is short for HS */
+	temp.setup_alt_next = 0;	/* XXXNH */
 
 	dwc_otg_setup_standard_chain_sub(&temp);
 
-	done = 0;
-	temp.buf = UGETW(req->wLength) ? KERNADDR(&xfer->dmabuf, 0) : NULL;
-	temp.len = UGETW(req->wLength);
-
 	KASSERT((temp.buf == NULL) == (temp.len == 0));
-	if (dir == UE_DIR_IN) {
+	if (dir == UT_READ) {
 		temp.func = &dwc_otg_host_data_rx;
 	} else {
 		temp.func = &dwc_otg_host_data_tx;
 	}
 
-	do {
-
+	done = 0;
+	/* Optional Data stage */
+	while (done != len) {
+ 
 		/* DATA0 / DATA1 message */
+ 
+		temp.buf = len ? KERNADDR(&xfer->dmabuf, done) : NULL;
+		temp.len = len - done;
+		temp.short_pkt = ( (xfer->flags & USBD_FORCE_SHORT_XFER) ? 0 : 1);
 
-		if (done == 0 && xfer->length == 0) {
-
-			/* make sure that we send an USB packet */
-
-			temp.short_pkt = 0;
-			break;
-
-		} else {
-
-			/* regular data transfer */
-
-			temp.short_pkt = ( (xfer->flags & USBD_FORCE_SHORT_XFER) ? 0 : 1);
-		}
-		temp.len = xfer->length - done;
 		if (temp.len > UGETW(ed->wMaxPacketSize))
 			temp.len = UGETW(ed->wMaxPacketSize);
 
-		DPRINTF("buf %p len %d\n", temp.buf, temp.len);
 		dwc_otg_setup_standard_chain_sub(&temp);
 
 		done += temp.len;
 		if (temp.len)
 			temp.buf = (char *)KERNADDR(&xfer->dmabuf, 0) + done;
+	};
 
-	} while (done != xfer->length);
-
+	/* Status Stage */
 	temp.buf = &req;	/* XXXNH not needed */
 	temp.len = 0;
 	temp.short_pkt = 0;
 	temp.setup_alt_next = 0;
 
-	/* check if we should append a status stage */
-	if (1 /*!xfer->flags_int.control_act*/) {
-
-		/*
-		 * Send a DATA1 message and invert the current
-		 * endpoint direction.
-		 */
-		if (dir == UE_DIR_IN) {
-			temp.func = &dwc_otg_host_data_tx;
-		} else {
-			temp.func = &dwc_otg_host_data_rx;
-		}
-
-		dwc_otg_setup_standard_chain_sub(&temp);
-
-		/* data toggle should be DATA1 */
-		td = temp.td;
-		td->set_toggle = 1;
+	/*
+	 * Send a DATA1 message and invert the current
+	 * endpoint direction.
+	 */
+	if (dir == UT_READ) {
+		temp.func = &dwc_otg_host_data_tx;
+	} else {
+		temp.func = &dwc_otg_host_data_rx;
 	}
+
+	dwc_otg_setup_standard_chain_sub(&temp);
+
+	/* data toggle should be DATA1 */
+	td = temp.td;
+	td->set_toggle = 1;
 
 	/* must have at least one frame! */
 	td = temp.td;
