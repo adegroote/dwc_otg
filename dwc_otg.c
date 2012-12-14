@@ -119,7 +119,6 @@ Static usbd_xfer_handle	dwc_otg_allocx(struct usbd_bus *);
 Static void		dwc_otg_freex(struct usbd_bus *, usbd_xfer_handle);
 Static void		dwc_otg_get_lock(struct usbd_bus *, kmutex_t **);
 
-Static usbd_status	dwc_otg_setup_isoc(usbd_pipe_handle pipe);
 Static void		dwc_otg_device_isoc_enter(usbd_xfer_handle);
 
 Static usbd_status	dwc_otg_root_ctrl_transfer(usbd_xfer_handle);
@@ -401,37 +400,6 @@ dwc_otg_waitintr(struct dwc_otg_softc *sc, usbd_xfer_handle xfer)
 	mutex_enter(&sc->sc_lock);
 	usb_transfer_complete(xfer);
 	mutex_exit(&sc->sc_lock);
-}
-
-Static void
-dwc_otg_device_ctrl_done(usbd_xfer_handle xfer)
-{
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-
-	DPRINTF("\n");
-
-	dpipe = dpipe;
-}
-
-Static void
-dwc_otg_device_intr_done(usbd_xfer_handle xfer)
-{
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
-	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
-
-	DPRINTF("\n");
-
-	sc = sc;
-}
-
-Static void
-dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
-{
-	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
-
-	DPRINTF("\n");
-
-	sc = sc;
 }
 
 Static void
@@ -1173,7 +1141,6 @@ dwc_otg_root_intr_done(usbd_xfer_handle xfer)
  	DPRINTF("\n");
 }
 
-
 /***********************************************************************/
 
 Static usbd_status
@@ -1235,6 +1202,16 @@ dwc_otg_device_ctrl_close(usbd_pipe_handle pipe)
 	DPRINTF("\n");
 }
 
+Static void
+dwc_otg_device_ctrl_done(usbd_xfer_handle xfer)
+{
+	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
+
+	DPRINTF("\n");
+
+	dpipe = dpipe;
+}
+
 /***********************************************************************/
 
 Static usbd_status
@@ -1286,6 +1263,16 @@ dwc_otg_device_bulk_close(usbd_pipe_handle pipe)
 	DPRINTF("\n");
 
 	dpipe = dpipe;
+	sc = sc;
+}
+
+Static void
+dwc_otg_device_bulk_done(usbd_xfer_handle xfer)
+{
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
+
+	DPRINTF("\n");
+
 	sc = sc;
 }
 
@@ -1345,6 +1332,17 @@ dwc_otg_device_intr_close(usbd_pipe_handle pipe)
 	DPRINTF("\n");
 }
 
+Static void
+dwc_otg_device_intr_done(usbd_xfer_handle xfer)
+{
+	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)xfer->pipe;
+	struct dwc_otg_softc *sc = dpipe->pipe.device->bus->hci_private;
+
+	DPRINTF("\n");
+
+	sc = sc;
+}
+
 /***********************************************************************/
 
 usbd_status
@@ -1402,26 +1400,6 @@ dwc_otg_device_isoc_abort(usbd_xfer_handle xfer)
 }
 
 void
-dwc_otg_device_isoc_done(usbd_xfer_handle xfer)
-{
-	DPRINTF("\n");
-}
-
-
-usbd_status
-dwc_otg_setup_isoc(usbd_pipe_handle pipe)
-{
-	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
-	struct dwc_otg_softc *sc = pipe->device->bus->hci_private;
-
-	dpipe = dpipe;
-	sc = sc;
-	DPRINTF("\n");
-
-	return USBD_NORMAL_COMPLETION;
-}
-
-void
 dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 {
 	struct dwc_otg_pipe *dpipe = (struct dwc_otg_pipe *)pipe;
@@ -1429,6 +1407,12 @@ dwc_otg_device_isoc_close(usbd_pipe_handle pipe)
 
 	dpipe = dpipe;
 	sc = sc;
+	DPRINTF("\n");
+}
+
+void
+dwc_otg_device_isoc_done(usbd_xfer_handle xfer)
+{
 	DPRINTF("\n");
 }
 
