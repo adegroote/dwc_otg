@@ -3048,8 +3048,7 @@ dwc_otg_timer(void *_sc)
 
 	if (sc->sc_timer_active) {
 		/* restart timer */
-		callout_reset(&sc->sc_timer,
-		    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+		callout_reset(&sc->sc_timer, mstohz(DWC_OTG_HOST_TIMER_RATE),
 		    &dwc_otg_timer, sc);
 	}
 }
@@ -3063,8 +3062,7 @@ dwc_otg_timer_start(struct dwc_otg_softc *sc)
 	sc->sc_timer_active = 1;
 
 	/* restart timer */
-	callout_reset(&sc->sc_timer,
-	    hz / (1000 / DWC_OTG_HOST_TIMER_RATE),
+	callout_reset(&sc->sc_timer, mstohz(DWC_OTG_HOST_TIMER_RATE),
 	    &dwc_otg_timer, sc);
 }
 
