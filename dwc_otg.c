@@ -3171,6 +3171,12 @@ repeat:
 		usbd_xfer_handle xfer = &dxfer->xfer;
 
 		if (!dwc_otg_xfer_do_fifo(xfer)) {
+			if (xfer->timeout != 0) {
+				callout_reset(&xfer->timeout_handle,
+				    mstohz(xfer->timeout), dwc_otg_timeout,
+				    xfer);
+			}
+
 			/* queue has been modified */
 			goto repeat;
 		}
