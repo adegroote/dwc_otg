@@ -3519,9 +3519,9 @@ dwc_otg_setup_ctrl_chain(usbd_xfer_handle xfer)
 	done = 0;
 	/* Optional Data stage */
 	while (done != len) {
- 
+
 		/* DATA0 / DATA1 message */
- 
+
 		temp.buf = len ? KERNADDR(&xfer->dmabuf, done) : NULL;
 		temp.len = len - done;
 		temp.short_pkt = ( (xfer->flags & USBD_FORCE_SHORT_XFER) ? 0 : 1);
