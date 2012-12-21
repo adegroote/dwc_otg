@@ -1051,8 +1051,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 		sc->sc_enaddr[0] = (uint8_t)((mac_l) & 0xff);
 	}
 
-	printf("%s: address %s\n", device_xname(sc->sc_dev),
-	    ether_sprintf(sc->sc_enaddr));
+	aprint_normal(" address %s\n", ether_sprintf(sc->sc_enaddr));
 
 	/* Initialise the chip for the first time */
 	smsc_chip_init(sc);
