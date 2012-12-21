@@ -968,6 +968,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	int err, s, i;
 	uint32_t mac_h, mac_l;
 
+	sc->sc_dev = self;
 	sc->sc_udev = dev;
 
 	err = usbd_set_config_no(dev, SMSC_CONFIG_INDEX, 1);
