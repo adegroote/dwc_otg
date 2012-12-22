@@ -1040,6 +1040,14 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	 */
 	memset(sc->sc_enaddr, 0xff, ETHER_ADDR_LEN);
 
+	prop_dictionary_t dict = device_properties(self);
+	prop_data_t eaprop = prop_dictionary_get(dict, "mac-address");
+	if (eaprop != NULL) {
+		KASSERT(prop_object_type(eaprop) == PROP_TYPE_DATA);
+		KASSERT(prop_data_size(eaprop) == ETHER_ADDR_LEN);
+		memcpy(sc->sc_enaddr, prop_data_data_nocopy(eaprop),
+		    ETHER_ADDR_LEN);
+	} else
 	/* Check if there is already a MAC address in the register */
 	if ((smsc_read_reg(sc, SMSC_MAC_ADDRL, &mac_l) == 0) &&
 	    (smsc_read_reg(sc, SMSC_MAC_ADDRH, &mac_h) == 0)) {
