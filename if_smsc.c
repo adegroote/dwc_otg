@@ -153,7 +153,6 @@ static const struct usb_devno smsc_devs[] = {
 	printf("%s: error: " fmt, device_xname((sc)->sc_dev), ##args)
 
 int		 smsc_chip_init(struct smsc_softc *);
-int		 smsc_ioctl(struct ifnet *, u_long, void *);
 void		 smsc_setmulti(struct smsc_softc *);
 int		 smsc_setmacaddress(struct smsc_softc *, const uint8_t *);
 
@@ -163,9 +162,11 @@ void		 smsc_attach(device_t, device_t, void *);
 int		 smsc_detach(device_t, int);
 int		 smsc_activate(device_t, enum);
 
-void		 smsc_init(void *);
-void		 smsc_stop(struct smsc_softc *);
+int		 smsc_init(struct ifnet *);
 void		 smsc_start(struct ifnet *);
+int		 smsc_ioctl(struct ifnet *, u_long, void *);
+void		 smsc_stop(struct ifnet *, int);
+
 void		 smsc_reset(struct smsc_softc *);
 struct mbuf	*smsc_newbuf(void);
 
@@ -536,19 +537,21 @@ smsc_reset(struct smsc_softc *sc)
 	smsc_chip_init(sc);
 }
 
-void
-smsc_init(void *xsc)
+int
+smsc_init(struct ifnet *ifp)
 {
-	struct smsc_softc	*sc = xsc;
-	struct ifnet		*ifp = &sc->sc_ec.ec_if;
+	struct smsc_softc	*sc = ifp->if_softc;
 	struct smsc_chain	*c;
 	usbd_status		 err;
 	int			 s, i;
 
+	if (sc->sc_dying)
+		return EIO;
+
 	s = splnet();
 
 	/* Cancel pending I/O */
-	smsc_stop(sc);
+	smsc_stop(ifp, 0);
 
 	/* Reset the ethernet interface. */
 	smsc_reset(sc);
@@ -557,14 +560,14 @@ smsc_init(void *xsc)
 	if (smsc_rx_list_init(sc) == ENOBUFS) {
 		printf("%s: rx list init failed\n", device_xname(sc->sc_dev));
 		splx(s);
-		return;
+		return EIO;
 	}
 
 	/* Init TX ring. */
 	if (smsc_tx_list_init(sc) == ENOBUFS) {
 		printf("%s: tx list init failed\n", device_xname(sc->sc_dev));
 		splx(s);
-		return;
+		return EIO;
 	}
 
 	/* Load the multicast filter. */
@@ -577,7 +580,7 @@ smsc_init(void *xsc)
 		printf("%s: open rx pipe failed: %s\n",
 		    device_xname(sc->sc_dev), usbd_errstr(err));
 		splx(s);
-		return;
+		return EIO;
 	}
 
 	err = usbd_open_pipe(sc->sc_iface, sc->sc_ed[SMSC_ENDPT_TX],
@@ -586,7 +589,7 @@ smsc_init(void *xsc)
 		printf("%s: open tx pipe failed: %s\n",
 		    device_xname(sc->sc_dev), usbd_errstr(err));
 		splx(s);
-		return;
+		return EIO;
 	}
 
 	/* Start up the receive pipe. */
@@ -609,6 +612,8 @@ smsc_init(void *xsc)
 	callout_reset(&sc->sc_stat_ch, hz, smsc_tick, sc);
 
 	splx(s);
+
+	return 0;
 }
 
 void
@@ -652,10 +657,10 @@ smsc_tick(void *xsc)
 }
 
 void
-smsc_stop(struct smsc_softc *sc)
+smsc_stop(struct ifnet *ifp, int disable)
 {
 	usbd_status		err;
-	struct ifnet		*ifp;
+	struct smsc_softc	*sc = ifp->if_softc;
 	int			i;
 
 	smsc_reset(sc);
@@ -885,66 +890,66 @@ smsc_ioctl(struct ifnet *ifp, u_long cmd, void *data)
 	struct ifreq		*ifr = (struct ifreq *)data;
 #if 0
 	struct ifaddr		*ifa = (struct ifaddr *)data;
-#endif
 	struct mii_data		*mii;
+#endif
 	int			s, error = 0;
+
+	if (sc->sc_dying)
+		return EIO;
 
 	s = splnet();
 
 	switch(cmd) {
-	case SIOCSIFADDR:
-		ifp->if_flags |= IFF_UP;
-		if (!(ifp->if_flags & IFF_RUNNING))
-			smsc_init(sc);
-#ifdef INET
-		if (ifa->ifa_addr->sa_family == AF_INET)
-			arp_ifinit(&sc->sc_ec, ifa);
-#endif
-		break;
-
 	case SIOCSIFFLAGS:
-		if (ifp->if_flags & IFF_UP) {
-			if (ifp->if_flags & IFF_RUNNING &&
-			    ifp->if_flags & IFF_PROMISC &&
+		if ((error = ifioctl_common(ifp, cmd, data)) != 0)
+			break;
+
+		switch (ifp->if_flags & (IFF_UP | IFF_RUNNING)) {
+		case IFF_RUNNING:
+			smsc_stop(ifp, 1);
+			break;
+		case IFF_UP:
+			smsc_init(ifp);
+			break;
+		case IFF_UP | IFF_RUNNING:
+			if (ifp->if_flags & IFF_PROMISC &&
 			    !(sc->sc_if_flags & IFF_PROMISC)) {
 				sc->sc_mac_csr |= SMSC_MAC_CSR_PRMS;
 				smsc_write_reg(sc, SMSC_MAC_CSR,
 				    sc->sc_mac_csr);
 				smsc_setmulti(sc);
-			} else if (ifp->if_flags & IFF_RUNNING &&
-			    !(ifp->if_flags & IFF_PROMISC) &&
+			} else if (!(ifp->if_flags & IFF_PROMISC) &&
 			    sc->sc_if_flags & IFF_PROMISC) {
 				sc->sc_mac_csr &= ~SMSC_MAC_CSR_PRMS;
 				smsc_write_reg(sc, SMSC_MAC_CSR,
 				    sc->sc_mac_csr);
 				smsc_setmulti(sc);
-			} else if (!(ifp->if_flags & IFF_RUNNING))
-				smsc_init(sc);
-		} else {
-			if (ifp->if_flags & IFF_RUNNING)
-				smsc_stop(sc);
+			} else {
+				smsc_init(ifp);
+			}
+			break;
 		}
 		sc->sc_if_flags = ifp->if_flags;
 		break;
 
 	case SIOCGIFMEDIA:
 	case SIOCSIFMEDIA:
-		mii = &sc->sc_mii;
-		error = ifmedia_ioctl(ifp, ifr, &mii->mii_media, cmd);
+		error = ifmedia_ioctl(ifp, ifr, &sc->sc_mii.mii_media, cmd);
 		break;
 
 	default:
-		error = ether_ioctl(ifp, cmd, data);
-	}
+		if ((error = ether_ioctl(ifp, cmd, data)) != ENETRESET)
+			break;
 
-	if (error == ENETRESET) {
-		if (ifp->if_flags & IFF_RUNNING)
-			smsc_setmulti(sc);
 		error = 0;
-	}
 
+		if (cmd == SIOCADDMULTI || cmd == SIOCDELMULTI)
+			smsc_setmulti(sc);
+
+	}
 	splx(s);
-	return(error);
+
+	return error;
 }
 
 int
@@ -1019,6 +1024,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	ifp->if_softc = sc;
 	strlcpy(ifp->if_xname, device_xname(sc->sc_dev), IFNAMSIZ);
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
+	ifp->if_init = smsc_init;
 	ifp->if_ioctl = smsc_ioctl;
 	ifp->if_start = smsc_start;
 
@@ -1127,7 +1133,7 @@ smsc_detach(device_t self, int flags)
 	}
 
 	if (ifp->if_flags & IFF_RUNNING)
-		smsc_stop(sc);
+		smsc_stop(ifp ,1);
 
 	mii_detach(&sc->sc_mii, MII_PHY_ANY, MII_OFFSET_ANY);
 	ifmedia_delete_instance(&sc->sc_mii.mii_media, IFM_INST_ANY);
@@ -1441,6 +1447,7 @@ smsc_newbuf(void)
 int
 smsc_encap(struct smsc_softc *sc, struct mbuf *m, int idx)
 {
+	struct ifnet		*ifp = &sc->sc_ec.ec_if;
 	struct smsc_chain	*c;
 	usbd_status		 err;
 	uint32_t		 txhdr;
@@ -1474,8 +1481,9 @@ smsc_encap(struct smsc_softc *sc, struct mbuf *m, int idx)
 	    10000, smsc_txeof);
 
 	err = usbd_transfer(c->sc_xfer);
+
 	if (err != USBD_IN_PROGRESS) {
-		smsc_stop(sc);
+		smsc_stop(ifp, 0);
 		return (EIO);
 	}
 
