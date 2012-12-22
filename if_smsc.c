@@ -66,6 +66,7 @@
  */
 
 #include "vlan.h"
+#include "opt_usb.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
