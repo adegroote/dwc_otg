@@ -204,10 +204,9 @@ typedef struct dwc_otg_softc {
 	uint8_t sc_addr;		/* device address */
 	uint8_t sc_conf;		/* device configuration */
 	uint8_t sc_mode;		/* mode of operation */
-#define	DWC_MODE_OTG 0		/* both modes */
-#define	DWC_MODE_DEVICE 1	/* device only */
-#define	DWC_MODE_HOST 2		/* host only */
-
+#define	DWC_MODE_OTG	0	/* both modes */
+#define	DWC_MODE_DEVICE	1	/* device only */
+#define	DWC_MODE_HOST	2	/* host only */
 
 	struct dwc_otg_flags sc_flags;
 
