@@ -108,7 +108,7 @@
 #include "ioconf.h"
 
 #ifdef USB_DEBUG
-static int smsc_debug = 0;
+int smsc_debug = 0;
 #endif
 
 /*
