@@ -253,9 +253,9 @@ smsc_wait_for_bits(struct smsc_softc *sc, uint32_t reg, uint32_t bits)
 }
 
 int
-smsc_miibus_readreg(struct device *dev, int phy, int reg)
+smsc_miibus_readreg(device_t dev, int phy, int reg)
 {
-	struct smsc_softc *sc = (struct smsc_softc *)dev;
+	struct smsc_softc *sc = device_private(dev);
 	uint32_t addr;
 	uint32_t val = 0;
 
@@ -279,9 +279,9 @@ done:
 }
 
 void
-smsc_miibus_writereg(struct device *dev, int phy, int reg, int val)
+smsc_miibus_writereg(device_t dev, int phy, int reg, int val)
 {
-	struct smsc_softc *sc = (struct smsc_softc *)dev;
+	struct smsc_softc *sc = device_private(dev);
 	uint32_t addr;
 
 	if (sc->sc_phyno != phy)
@@ -1084,9 +1084,9 @@ smsc_attach(device_t parent, device_t self, void *aux)
 }
 
 int
-smsc_detach(struct device *self, int flags)
+smsc_detach(device_t self, int flags)
 {
-	struct smsc_softc *sc = (struct smsc_softc *)self;
+	struct smsc_softc *sc = device_private(self);
 	struct ifnet *ifp = &sc->sc_ec.ec_if;
 	int s;
 
