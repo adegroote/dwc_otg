@@ -152,8 +152,8 @@ static const struct usb_devno smsc_devs[] = {
 #define smsc_err_printf(sc, fmt, args...) \
 	printf("%s: error: " fmt, device_xname((sc)->sc_dev), ##args)
 
-int		 smsc_chip_init(struct smsc_softc *sc);
-int		 smsc_ioctl(struct ifnet *ifp, u_long cmd, void *data);
+int		 smsc_chip_init(struct smsc_softc *);
+int		 smsc_ioctl(struct ifnet *, u_long, void *);
 void		 smsc_setmulti(struct smsc_softc *);
 int		 smsc_setmacaddress(struct smsc_softc *, const uint8_t *);
 
@@ -161,7 +161,7 @@ int		 smsc_setmacaddress(struct smsc_softc *, const uint8_t *);
 int		 smsc_match(device_t, cfdata_t, void *);
 void		 smsc_attach(device_t, device_t, void *);
 int		 smsc_detach(device_t, int);
-int		 smsc_activate(device_t, enum devact);
+int		 smsc_activate(device_t, enum);
 
 void		 smsc_init(void *);
 void		 smsc_stop(struct smsc_softc *);
@@ -176,8 +176,8 @@ int		 smsc_miibus_readreg(device_t, int, int);
 void		 smsc_miibus_writereg(device_t, int, int, int);
 int		 smsc_ifmedia_upd(struct ifnet *);
 void		 smsc_ifmedia_sts(struct ifnet *, struct ifmediareq *);
-void		 smsc_lock_mii(struct smsc_softc *sc);
-void		 smsc_unlock_mii(struct smsc_softc *sc);
+void		 smsc_lock_mii(struct smsc_softc *);
+void		 smsc_unlock_mii(struct smsc_softc *);
 
 int		 smsc_tx_list_init(struct smsc_softc *);
 int		 smsc_rx_list_init(struct smsc_softc *);
