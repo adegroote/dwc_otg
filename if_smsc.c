@@ -1248,7 +1248,7 @@ smsc_rxeof(usbd_xfer_handle xfer, usbd_private_handle priv, usbd_status status)
 
 	do {
 		if (total_len < sizeof(rxhdr)) {
-			smsc_dbg_printf(sc, "total_len %d < sizeof(rxhdr) %d\n",
+			smsc_dbg_printf(sc, "total_len %d < sizeof(rxhdr) %zu\n",
 			    total_len, sizeof(rxhdr));
 			ifp->if_ierrors++;
 			goto done;
