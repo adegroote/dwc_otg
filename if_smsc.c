@@ -969,6 +969,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	usbd_device_handle dev = uaa->device;
 	usb_interface_descriptor_t *id;
 	usb_endpoint_descriptor_t *ed;
+	char *devinfop;
 	struct mii_data *mii;
 	struct ifnet *ifp;
 	int err, s, i;
@@ -977,8 +978,19 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	sc->sc_dev = self;
 	sc->sc_udev = dev;
 
-	err = usbd_set_config_no(dev, SMSC_CONFIG_INDEX, 1);
+	aprint_naive("\n");
+	aprint_normal("\n");
 
+	devinfop = usbd_devinfo_alloc(sc->sc_udev, 0);
+	aprint_normal_dev(self, "%s\n", devinfop);
+	usbd_devinfo_free(devinfop);
+
+	err = usbd_set_config_no(dev, SMSC_CONFIG_INDEX, 1);
+	if (err) {
+		aprint_error_dev(self, "failed to set configuration"
+		    ", err=%s\n", usbd_errstr(err));
+		return;
+	}
 	/* Setup the endpoints for the SMSC LAN95xx device(s) */
 	usb_init_task(&sc->sc_tick_task, smsc_tick_task, sc);
 	mutex_init(&sc->sc_mii_lock, MUTEX_DEFAULT, IPL_NONE);
@@ -986,8 +998,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 
 	err = usbd_device2interface_handle(dev, SMSC_IFACE_IDX, &sc->sc_iface);
 	if (err) {
-		printf("%s: getting interface handle failed\n",
-		    device_xname(sc->sc_dev));
+		aprint_error_dev(self, "getting interface handle failed\n");
 		return;
 	}
 
@@ -1002,8 +1013,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	for (i = 0; i < id->bNumEndpoints; i++) {
 		ed = usbd_interface2endpoint_descriptor(sc->sc_iface, i);
 		if (!ed) {
-			printf("%s: couldn't get ep %d\n",
-			    device_xname(sc->sc_dev), i);
+			aprint_error_dev(self, "couldn't get ep %d\n", i);
 			return;
 		}
 		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
@@ -1028,14 +1038,8 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	ifp->if_ioctl = smsc_ioctl;
 	ifp->if_start = smsc_start;
 
-#if 0
-    186 #define ETHERCAP_VLAN_MTU       0x00000001      /* VLAN-compatible MTU */
-    187 #define ETHERCAP_VLAN_HWTAGGING 0x00000002      /* hardware VLAN tag support */
-    188 #define ETHERCAP_JUMBO_MTU      0x00000004      /* 9000 byte MTU supported */
-#endif
-// 	ifp->if_capabilities = IFCAP_VLAN_MTU;
         sc->sc_ec.ec_capabilities |=
-            ETHERCAP_VLAN_HWTAGGING | ETHERCAP_VLAN_MTU;
+            ETHERCAP_VLAN_MTU;
 
 	/* Setup some of the basics */
 	sc->sc_phyno = 1;
@@ -1049,6 +1053,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 
 	prop_dictionary_t dict = device_properties(self);
 	prop_data_t eaprop = prop_dictionary_get(dict, "mac-address");
+
 	if (eaprop != NULL) {
 		KASSERT(prop_object_type(eaprop) == PROP_TYPE_DATA);
 		KASSERT(prop_data_size(eaprop) == ETHER_ADDR_LEN);
@@ -1066,7 +1071,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 		sc->sc_enaddr[0] = (uint8_t)((mac_l) & 0xff);
 	}
 
-	aprint_normal(" address %s\n", ether_sprintf(sc->sc_enaddr));
+	aprint_normal_dev(self, " address %s\n", ether_sprintf(sc->sc_enaddr));
 
 	/* Initialise the chip for the first time */
 	smsc_chip_init(sc);
