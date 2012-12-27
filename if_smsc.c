@@ -160,7 +160,7 @@ int		 smsc_setmacaddress(struct smsc_softc *, const uint8_t *);
 int		 smsc_match(device_t, cfdata_t, void *);
 void		 smsc_attach(device_t, device_t, void *);
 int		 smsc_detach(device_t, int);
-int		 smsc_activate(device_t, enum);
+int		 smsc_activate(device_t, enum devact);
 
 int		 smsc_init(struct ifnet *);
 void		 smsc_start(struct ifnet *);
