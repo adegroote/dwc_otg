@@ -191,7 +191,8 @@ int		 smsc_write_reg(struct smsc_softc *, uint32_t, uint32_t);
 int		 smsc_wait_for_bits(struct smsc_softc *, uint32_t, uint32_t);
 int		 smsc_sethwcsum(struct smsc_softc *);
 
-CFATTACH_DECL_NEW(usml, sizeof(struct smsc_softc), smsc_match, smsc_attach, smsc_detach, smsc_activate);
+CFATTACH_DECL_NEW(usml, sizeof(struct smsc_softc), smsc_match, smsc_attach,
+    smsc_detach, smsc_activate);
 
 int
 smsc_read_reg(struct smsc_softc *sc, uint32_t off, uint32_t *data)
