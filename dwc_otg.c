@@ -4063,7 +4063,7 @@ dwc_otg_xfer_setup(usbd_xfer_handle xfer)
 			td = buf;
 
 			/* init TD */
-			td->max_packet_size = UGETW(ed->wMaxPacketSize);;
+			td->max_packet_size = UGETW(ed->wMaxPacketSize);
 			td->ep_no = ep_no;
 			td->obj_next = last_obj;
 
