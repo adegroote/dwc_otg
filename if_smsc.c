@@ -152,11 +152,11 @@ static const struct usb_devno smsc_devs[] = {
 #define smsc_err_printf(sc, fmt, args...) \
 	printf("%s: error: " fmt, device_xname((sc)->sc_dev), ##args)
 
+/* Function declarations */
 int		 smsc_chip_init(struct smsc_softc *);
 void		 smsc_setmulti(struct smsc_softc *);
 int		 smsc_setmacaddress(struct smsc_softc *, const uint8_t *);
 
-/* Function declarations */
 int		 smsc_match(device_t, cfdata_t, void *);
 void		 smsc_attach(device_t, device_t, void *);
 int		 smsc_detach(device_t, int);
