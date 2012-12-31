@@ -105,7 +105,9 @@
 #include <dev/usb/usbdivar.h>
 #include <dev/usb/usbdevs.h>
 
-#include "if_smscreg.h"
+#include <dev/usb/if_smscreg.h>
+#include <dev/usb/if_smscvar.h>
+
 #include "ioconf.h"
 
 #ifdef USB_DEBUG

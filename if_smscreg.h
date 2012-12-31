@@ -249,63 +249,6 @@
 #define SMSC_ENDPT_INTR		2
 #define SMSC_ENDPT_MAX		3
 
-struct smsc_chain {
-	struct smsc_softc	*sc_sc;
-	usbd_xfer_handle	 sc_xfer;
-	char			*sc_buf;
-	struct mbuf		*sc_mbuf;
-	int			 sc_accum;
-	int			 sc_idx;
-};
-
-struct smsc_cdata {
-	struct smsc_chain	 tx_chain[SMSC_TX_LIST_CNT];
-	struct smsc_chain	 rx_chain[SMSC_RX_LIST_CNT];
-	int			 tx_prod;
-	int			 tx_cons;
-	int			 tx_cnt;
-	int			 rx_prod;
-};
-
-struct smsc_softc {
-	device_t		sc_dev;
-	usbd_device_handle	sc_udev;
-	bool			sc_dying;
-
-	uint8_t			sc_enaddr[ETHER_ADDR_LEN];
-	struct ethercom		sc_ec;
-	struct mii_data		sc_mii;
-	int			sc_phyno;
-	usbd_interface_handle	sc_iface;
-
-	/*
-	 * The following stores the settings in the mac control (MAC_CSR)
-	 * register
-	 */
-	uint32_t		sc_mac_csr;
-	uint32_t		sc_rev_id;
-
-	int			sc_if_flags;
-	int			sc_refcnt;
-
-	struct usb_task		sc_tick_task;
-	struct usb_task		sc_stop_task;
-
-	int			sc_ed[SMSC_ENDPT_MAX];
-	usbd_pipe_handle	sc_ep[SMSC_ENDPT_MAX];
-
-	kmutex_t		sc_mii_lock;
-
-	struct smsc_cdata	sc_cdata;
-	callout_t		sc_stat_ch;
-
-	struct timeval		sc_rx_notice;
-	u_int			sc_bufsz;
-
-	uint32_t		sc_flags;
-#define	SMSC_FLAG_LINK      0x0001
-};
-
 #define SMSC_MIN_BUFSZ		2048
 #define SMSC_MAX_BUFSZ		18944
 
