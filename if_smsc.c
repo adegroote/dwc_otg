@@ -1040,9 +1040,8 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	ifp->if_start = smsc_start;
 	ifp->if_stop = smsc_stop;
 
-        sc->sc_ec.ec_capabilities |=
-            ETHERCAP_VLAN_MTU;
-
+        sc->sc_ec.ec_capabilities = ETHERCAP_VLAN_MTU;
+	
 	/* Setup some of the basics */
 	sc->sc_phyno = 1;
 
