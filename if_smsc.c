@@ -1088,6 +1088,7 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	mii->mii_statchg = smsc_miibus_statchg;
 	mii->mii_flags = MIIF_AUTOTSLEEP;
 
+	sc->sc_ec.ec_mii = mii;
 	ifmedia_init(&mii->mii_media, 0, smsc_ifmedia_upd, smsc_ifmedia_sts);
 	mii_attach(self, mii, 0xffffffff, MII_PHY_ANY, MII_OFFSET_ANY, 0);
 
