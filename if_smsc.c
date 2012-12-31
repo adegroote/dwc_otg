@@ -994,8 +994,8 @@ smsc_attach(device_t parent, device_t self, void *aux)
 	}
 	/* Setup the endpoints for the SMSC LAN95xx device(s) */
 	usb_init_task(&sc->sc_tick_task, smsc_tick_task, sc);
-	mutex_init(&sc->sc_mii_lock, MUTEX_DEFAULT, IPL_NONE);
 	usb_init_task(&sc->sc_stop_task, (void (*)(void *))smsc_stop, sc);
+	mutex_init(&sc->sc_mii_lock, MUTEX_DEFAULT, IPL_NONE);
 
 	err = usbd_device2interface_handle(dev, SMSC_IFACE_IDX, &sc->sc_iface);
 	if (err) {
