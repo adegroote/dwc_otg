@@ -1145,14 +1145,14 @@ dwc_otg_root_intr_start(usbd_xfer_handle xfer)
 	return (USBD_IN_PROGRESS);
 }
 
+/* Abort a root interrupt request. */
 Static void
 dwc_otg_root_intr_abort(usbd_xfer_handle xfer)
 {
 #ifdef DIAGNOSTIC
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
 #endif
-
-	DPRINTF("\n");
+	DPRINTF("xfer=%p\n", xfer);
 
 	KASSERT(mutex_owned(&sc->sc_lock));
 
@@ -1228,8 +1228,13 @@ dwc_otg_device_ctrl_start(usbd_xfer_handle xfer)
 Static void
 dwc_otg_device_ctrl_abort(usbd_xfer_handle xfer)
 {
+#ifdef DIAGNOSTIC
+	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
+#endif
+	KASSERT(mutex_owned(&sc->sc_lock));
 
-	DPRINTF("\n");
+	DPRINTF("xfer=%p\n", xfer);
+	dwc_otg_abort_xfer(xfer, USBD_CANCELLED);
 }
 
 Static void
@@ -1289,10 +1294,13 @@ dwc_otg_device_bulk_start(usbd_xfer_handle xfer)
 Static void
 dwc_otg_device_bulk_abort(usbd_xfer_handle xfer)
 {
+#ifdef DIAGNOSTIC
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
-	DPRINTF("\n");
+#endif
+	KASSERT(mutex_owned(&sc->sc_lock));
 
-	sc = sc;
+	DPRINTF("xfer=%p\n", xfer);
+	dwc_otg_abort_xfer(xfer, USBD_CANCELLED);
 }
 
 Static void
@@ -1353,13 +1361,22 @@ dwc_otg_device_intr_start(usbd_xfer_handle xfer)
 
 }
 
+/* Abort a device interrupt request. */
 Static void
 dwc_otg_device_intr_abort(usbd_xfer_handle xfer)
 {
+#ifdef DIAGNOSTIC
 	struct dwc_otg_softc *sc = xfer->pipe->device->bus->hci_private;
+#endif
 
-	sc = sc;
-	DPRINTF("\n");
+	KASSERT(mutex_owned(&sc->sc_lock));
+
+	if (xfer->pipe->intrxfer == xfer) {
+		DPRINTF("remove\n");
+		xfer->pipe->intrxfer = NULL;
+	}
+	DPRINTF("xfer=%p\n", xfer);
+	dwc_otg_abort_xfer(xfer, USBD_CANCELLED);
 }
 
 Static void
