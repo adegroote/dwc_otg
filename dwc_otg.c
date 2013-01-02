@@ -313,17 +313,24 @@ dwc_otg_freem(struct usbd_bus *bus, usb_dma_t *dma)
 usbd_xfer_handle
 dwc_otg_allocx(struct usbd_bus *bus)
 {
-	/*
-	 * Unused for now, maybe add some kind of free list to avoid too much
-	 * reallocation
-	 *
-	 * struct dwc_otg_softc *sc = bus->hci_private;
-	 */
-	(void) bus;
+	struct dwc_otg_softc *sc = bus->hci_private;
 	usbd_xfer_handle xfer;
 
-	xfer = kmem_zalloc(sizeof(struct dwc_otg_xfer), KM_SLEEP);
+	DPRINTF("\n");
 
+	xfer = SIMPLEQ_FIRST(&sc->sc_free_xfers);
+	if (xfer != NULL) {
+		SIMPLEQ_REMOVE_HEAD(&sc->sc_free_xfers, next);
+#ifdef DIAGNOSTIC
+		if (xfer->busy_free != XFER_FREE) {
+			DPRINTF("xfer=%p not free, 0x%08x\n", xfer,
+			    xfer->busy_free);
+		}
+#endif
+		memset(xfer, 0, sizeof(struct dwc_otg_xfer));
+	} else {
+		xfer = kmem_zalloc(sizeof(struct dwc_otg_xfer), KM_SLEEP);
+	}
 #ifdef DIAGNOSTIC
 	if (xfer != NULL) {
 		xfer->busy_free = XFER_BUSY;
@@ -335,13 +342,17 @@ dwc_otg_allocx(struct usbd_bus *bus)
 void
 dwc_otg_freex(struct usbd_bus *bus, usbd_xfer_handle xfer)
 {
-#ifdef DIAGNOASTIC
-	if (xfer->busy_free != XFER_BUSY)
-		printf("%s: xfer=%p not busy, 0x%08x\n", __func__, xfer,
-		    xfer->busy_free);
+	struct dwc_otg_softc *sc = bus->hci_private;
+
+	DPRINTF("\n");
+
+#ifdef DIAGNOSTIC
+	if (xfer->busy_free != XFER_BUSY) {
+		DPRINTF("xfer=%p not busy, 0x%08x\n", xfer, xfer->busy_free);
+	}
 	xfer->busy_free = XFER_FREE;
 #endif
-	kmem_free(xfer, sizeof(struct dwc_otg_xfer));
+	SIMPLEQ_INSERT_HEAD(&sc->sc_free_xfers, xfer, next);
 }
 
 Static void
