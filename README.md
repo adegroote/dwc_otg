@@ -6,3 +6,7 @@ including:
 Both drivers originate from the FreeBSD versions. At the moment, dwc_otg
 compiles and attaches succesfully and is able to perform some control
 transfers
+
+The code has been merged in NetBSD trunk. Future developpement is now done
+directly in the NetBSD repository. So, no more developpement is expected in 
+this repository.
